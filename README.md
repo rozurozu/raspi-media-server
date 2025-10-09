@@ -5,7 +5,7 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
 ## システム構成方針
 - **OS**: OMV 6 以降を SSD へインストールし、`omv-extras` で Docker/Compose v2 を有効化。
 - **サービス**: Jellyfin (動画ライブラリ)、Komga (書籍・漫画)、Samba (ファイル共有・必要なら OMV ネイティブ機能でも可)、Tailscale (遠隔アクセス)。
-- **ハードウェア要件**: Raspberry Pi 4 8GB、信頼性の高い USB3.0-SATA アダプタ、十分な容量の外付けストレージ。可能なら有線 LAN + 静的 IP。
+- **ハードウェア要件**: Raspberry Pi 4 8GB、信頼性の高い USB3.0-SATA アダプタ、十分な容量の外付けストレージ。有線 LAN + 静的 IP。
 - **権限管理**: すべてのコンテナは `UID/GID=1000` (pi ユーザー想定) で実行。OMV の共有フォルダ権限と整合を取る。
 
 ## ストレージ設計
