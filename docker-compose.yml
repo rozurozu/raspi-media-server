@@ -32,26 +32,11 @@ services:
       - "25600:25600"
     volumes:
       - ${CONFIG_ROOT:-/opt/docker}/komga/config:/config
-      - ${MANGA_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/books:ro
+      - ${MANGA_PUBLIC_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/books/public:ro # 公開用
+      - ${MANGA_PRIVATE_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/utatane/manga}:/books/utatane:ro # 非公開用
     networks:
       - media_net
 
-  samba:
-    image: dperson/samba
-    container_name: samba
-    restart: unless-stopped
-    environment:
-      - TZ=${TZ:-Asia/Tokyo}
-      - USER=${SAMBA_USER:-media};${SAMBA_PASSWORD:-changeme}
-      - SHARE=Media;${SAMBA_SHARE_PATH:-/srv/dev-disk-by-uuid-XXXX/media};yes;yes;yes
-      - NMBD=yes
-    ports:
-      - "139:139"
-      - "445:445"
-    volumes:
-      - ${SAMBA_SHARE_PATH:-/srv/dev-disk-by-uuid-XXXX/media}:/shares/media:rw
-    networks:
-      - media_net
 
   tailscale:
     image: tailscale/tailscale:stable
