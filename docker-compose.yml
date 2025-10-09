@@ -32,8 +32,9 @@ services:
       - "25600:25600"
     volumes:
       - ${CONFIG_ROOT:-/opt/docker}/komga/config:/config
-      - ${MANGA_PUBLIC_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/media/books:ro # 共有(家族)用
-      - ${MANGA_PRIVATE_ROOT:-/srv/dev-disk-by-uuid-XXXX/utatane/manga}:/utatane/books:ro # 非公開用
+      - ${MANGA_PUBLIC_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/media/books:ro # 公開(共有)用
+      # 非公開(個人)用を追加する場合は以下のコメントを外して利用してください
+      # - ${MANGA_PRIVATE_ROOT:-/srv/dev-disk-by-uuid-XXXX/utatane/manga}:/utatane/books:ro
     networks:
       - media_net
 

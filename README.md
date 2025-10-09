@@ -13,7 +13,7 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
 - **データ用 USB3.0 ストレージ**: OMV が `/srv/dev-disk-by-uuid-XXXX/` にマウント。共有フォルダ例: `/srv/dev-disk-by-uuid-XXXX/media`。
 - **Bind mount ポリシー**:
   - Jellyfin: `/media/video`（共有用）と `/utatane/video`（個人用）をマウント（既定で読み取り専用）。
-  - Komga: `/media/books`（共有用）と `/utatane/books`（個人用）をマウント（既定で読み取り専用）。
+  - Komga: まずは `/media/books`（共有用）のみをマウント。個人用を追加したい場合は `docker-compose.yml` のコメントを外し `/utatane/books` を有効化します。
   - ファイル共有は OMV の SMB 共有で提供（本リポジトリに Samba コンテナは含めません）。
 - 電源断対策としてセルフパワー USB ハブ利用を推奨。再起動後は OMV の「ファイルシステム」でマウント状態を確認。
 
