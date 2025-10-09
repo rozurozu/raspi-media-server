@@ -16,7 +16,7 @@ services:
       - ${CONFIG_ROOT:-/opt/docker}/jellyfin/config:/config
       - ${CACHE_ROOT:-/opt/docker}/jellyfin/cache:/cache
       - ${VIDEOS_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/video}:/media/video:ro
-      - ${PRIVATE_VIDEOS_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/utatane}:/media/utatane:ro
+      - ${PRIVATE_VIDEOS_ROOT:-/srv/dev-disk-by-uuid-XXXX/utatane/video}:/utatane/video:ro
     networks:
       - media_net
 
@@ -32,8 +32,8 @@ services:
       - "25600:25600"
     volumes:
       - ${CONFIG_ROOT:-/opt/docker}/komga/config:/config
-      - ${MANGA_PUBLIC_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/books/public:ro # 公開用
-      - ${MANGA_PRIVATE_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/utatane/manga}:/books/utatane:ro # 非公開用
+      - ${MANGA_PUBLIC_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/media/books:ro # 共有(家族)用
+      - ${MANGA_PRIVATE_ROOT:-/srv/dev-disk-by-uuid-XXXX/utatane/manga}:/utatane/books:ro # 非公開用
     networks:
       - media_net
 

@@ -12,8 +12,8 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
 - **OS 用 SSD**: `/opt/docker` 以下にコンテナ設定・キャッシュを配置 (可変: `CONFIG_ROOT`, `CACHE_ROOT`)。
 - **データ用 USB3.0 ストレージ**: OMV が `/srv/dev-disk-by-uuid-XXXX/` にマウント。共有フォルダ例: `/srv/dev-disk-by-uuid-XXXX/media`。
 - **Bind mount ポリシー**:
-  - Jellyfin: `/media` に動画ライブラリ全体をマウント。
-  - Komga: `/books` に漫画/書籍ディレクトリをマウント (既定で読み取り専用)。
+  - Jellyfin: `/media/video`（共有用）と `/utatane/video`（個人用）をマウント（既定で読み取り専用）。
+  - Komga: `/media/books`（共有用）と `/utatane/books`（個人用）をマウント（既定で読み取り専用）。
   - ファイル共有は OMV の SMB 共有で提供（本リポジトリに Samba コンテナは含めません）。
 - 電源断対策としてセルフパワー USB ハブ利用を推奨。再起動後は OMV の「ファイルシステム」でマウント状態を確認。
 
@@ -43,12 +43,19 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
 - Komga (OPDS): `http://raspi-media:25600/opds`
 - MagicDNS を使わない場合は `raspi-media` を Tailscale の 100.x.x.x アドレスに置き換えてください。
 
+### ローカルSMBアクセス（OMV 標準）
+Windows エクスプローラー:
+  - 共有 `media`: `\\\\<固定IP>\\media`（認証必須）
+  - 共有 `utatane`: `\\\\<固定IP>\\utatane`（認証必須）
+macOS Finder:
+  - `smb://<固定IP>/media`（認証必須）, `smb://<固定IP>/utatane`（認証必須）
+
 ## セットアップ手順
 1. **OMV 初期設定**
    - OMV を SSD へインストールし、管理 GUI で管理者パスワードを変更。
    - `omv-extras` → Docker/Compose/Portainer をインストール。
    - USB3.0 ストレージを接続し、`ストレージ > ファイルシステム` から EXT4 で初期化のうえマウント。
-   - `アクセス権管理 > 共有フォルダ` で `media` (例: `/srv/dev-disk-by-uuid-XXXX/media`) を作成し、pi ユーザーに読み書き権限を付与。
+   - `アクセス権管理 > 共有フォルダ` で `media` (例: `/srv/dev-disk-by-uuid-XXXX/media`) と `utatane` (例: `/srv/dev-disk-by-uuid-XXXX/utatane`) を作成し、pi ユーザーに読み取り権限（運用方針に応じて書込も）を付与。
 
 2. **リポジトリ配置**
    - `git clone` もしくは本ディレクトリを OMV ホスト上の任意パスへ配置。
@@ -71,15 +78,14 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
      - MagicDNS を有効化すると `http://raspi-media:25600` のように名前でアクセス可能。
 
 4. **動作確認と調整**
-   - Jellyfin でライブラリを2つ作成:
-     - 「Videos Public」→ フォルダ `/media/video`
-     - 「Videos Private」→ フォルダ `/media/utatane`
-     必要に応じてユーザーごとにライブラリアクセスを制限。
-   - Komga はライブラリを2つ作成:
-     - 「Manga Public」→ フォルダ `/books/public`
-     - 「Manga Private」→ フォルダ `/books/utatane`
-     必要に応じてユーザーごとにライブラリアクセスを制限。
-   - OMV の SMB 共有で読み書きできるか確認。必要なら OMV 側 ACL を再調整。
+    - Jellyfin: ライブラリを2つ作成。
+      - 「Videos」→ フォルダ `/media/video`
+      - 「Videos Utatane」→ フォルダ `/utatane/video`
+      ユーザーごとに「Videos Utatane」の可視性を制御。
+   - Komga: まずは公開用のみ作成（シンプル運用）。
+     - 「Manga」→ フォルダ `/media/books`（共有）
+     - 私用が必要になったら「Manga Utatane」→ `/utatane/books` を追加し、ユーザーごとに可視性を制御。
+   - OMV の SMB 共有で `media` と `utatane` の読み書きを確認。必要なら OMV 側 ACL を再調整。
    - Tailscale 管理画面でノード登録とサブネット設定を確認。
 
 ## ディレクトリ構成 (推奨)
@@ -91,21 +97,33 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
   └─ tailscale/state      # Tailscale 状態ファイル
 
 /srv/dev-disk-by-uuid-XXXX/media
-  ├─ video/               # 公開動画 (Jellyfin: /media/video)
-  ├─ picture/             # 公開写真 (現状サービス未割当)
-  ├─ manga/               # 公開漫画 (Komga: /books/public)
-  └─ utatane/             # 非公開ルート（配下に集約）
-      ├─ video/           # 非公開動画 (Jellyfin: /media/utatane)
-      ├─ picture/         # 非公開写真 (現状サービス未割当)
-      └─ manga/           # 非公開漫画 (Komga: /books/utatane)
+  ├─ video/               # 共有(家族)動画 (Jellyfin: /media/video, SMB: \\video)
+  ├─ picture/             # 共有(家族)写真 (SMB: \\picture、アプリ連携なし/任意)
+  └─ manga/               # 共有(家族)漫画 (Komga: /media/books)
+
+/srv/dev-disk-by-uuid-XXXX/utatane
+  ├─ video/               # 非公開動画 (Jellyfin: /utatane/video)
+  ├─ picture/             # 非公開写真 (SMB: \\utatane\picture、アプリ連携なし/任意)
+  └─ manga/               # 非公開漫画 (Komga: /utatane/books)
 ```
-実際の UUID は `ls -al /srv` や OMV GUI で確認し、`.env` の `MEDIA_ROOT` / `VIDEOS_ROOT` / `PRIVATE_VIDEOS_ROOT` / `PICTURE_ROOT` / `MANGA_PUBLIC_ROOT` / `MANGA_PRIVATE_ROOT` を更新してください。
+実際の UUID は `ls -al /srv` や OMV GUI で確認し、`.env` の `MEDIA_ROOT` / `VIDEOS_ROOT` / `PRIVATE_VIDEOS_ROOT` / `PICTURE_ROOT` / `MANGA_PUBLIC_ROOT` / `MANGA_PRIVATE_ROOT` を更新してください（PICTURE は SMB 共有のみで使用）。
 
 ## 運用ノート
 - Jellyfin のハードウェアトランスコードは Pi では負荷が高いため、基本はソフトウェア再生を想定。解像度やビットレートを事前変換しておくと安定。
-- Komga のメタデータは `/books` 以下のフォルダ構造に依拠するため、命名規則を定めておく。
+- Komga のメタデータはライブラリで指定したパス（例: `/media/books` や `/utatane/books`）以下の構造に依拠するため、命名規則を定めておく。
 - 定期的に `docker compose pull` → `docker compose up -d` で更新。アップデート前に `docker compose logs` でエラーが無いか確認。
 - バックアップは `CONFIG_ROOT` 配下とメディアストレージを別ドライブへ同期。最低でも設定ディレクトリは週次バックアップ推奨。
+
+## OMV での SMB 共有作成（推奨運用）
+- 共有フォルダを作成（アクセス方針）
+  - media → 実体 `/srv/.../media`（認証必須、家族全員に読取/必要なら書込。配下に video/picture/manga）
+  - utatane → 実体 `/srv/.../utatane`（認証必須、許可ユーザーのみ。配下に video/picture/manga）
+- 権限/ACL（OMV GUI: アクセス権管理 → 共有フォルダ → 権限/ACL）
+  - Jellyfin/Komga 実行ユーザー（UID/GID=1000）に少なくとも読取付与（Jellyfin は video/utatane、Komga は manga）
+  - utatane は対象ユーザー（または専用グループ）のみに読取/書込権限を付与し、ゲストは拒否
+  - LAN 限定にする場合は共有の「追加オプション」に以下例を指定
+    - hosts allow = 192.168.0.0/16 10.0.0.0/8
+    - hosts deny = 0.0.0.0/0
 
 ## ネクストステップ案
 - 監視: Netdata や Prometheus Node Exporter を追加して温度/負荷を可視化。
