@@ -1,0 +1,76 @@
+name: raspi-media-server
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - TZ=${TZ:-Asia/Tokyo}
+      - JELLYFIN_PublishedServerUrl=${JELLYFIN_PUBLISHED_URL:-}
+    ports:
+      - "8096:8096"
+      - "8920:8920"
+    volumes:
+      - ${CONFIG_ROOT:-/opt/docker}/jellyfin/config:/config
+      - ${CACHE_ROOT:-/opt/docker}/jellyfin/cache:/cache
+      - ${VIDEOS_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/video}:/media/video:ro
+      - ${PRIVATE_VIDEOS_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/utatane}:/media/utatane:ro
+    networks:
+      - media_net
+
+  komga:
+    image: gotson/komga:latest
+    container_name: komga
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - TZ=${TZ:-Asia/Tokyo}
+      - JAVA_OPTS=${KOMGA_JAVA_OPTS:--Xms512m -Xmx1024m}
+    ports:
+      - "25600:25600"
+    volumes:
+      - ${CONFIG_ROOT:-/opt/docker}/komga/config:/config
+      - ${MANGA_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/books:ro
+    networks:
+      - media_net
+
+  samba:
+    image: dperson/samba
+    container_name: samba
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-Asia/Tokyo}
+      - USER=${SAMBA_USER:-media};${SAMBA_PASSWORD:-changeme}
+      - SHARE=Media;${SAMBA_SHARE_PATH:-/srv/dev-disk-by-uuid-XXXX/media};yes;yes;yes
+      - NMBD=yes
+    ports:
+      - "139:139"
+      - "445:445"
+    volumes:
+      - ${SAMBA_SHARE_PATH:-/srv/dev-disk-by-uuid-XXXX/media}:/shares/media:rw
+    networks:
+      - media_net
+
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: tailscale
+    restart: unless-stopped
+    hostname: ${TAILSCALE_HOSTNAME:-raspi-media}
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTHKEY:-}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=${TAILSCALE_EXTRA_ARGS:-}
+    volumes:
+      - ${CONFIG_ROOT:-/opt/docker}/tailscale/state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+
+networks:
+  media_net:
+    driver: bridge
