@@ -52,6 +52,7 @@ macOS Finder:
 
 ## セットアップ手順
 1. **OMV 初期設定**
+   - ベース OS は Debian 12 (Bookworm) ベースの Raspberry Pi OS Lite (64-bit) を使用してください。OMV のインストーラは Debian 安定版以外（Testing や最新版リリース候補など）では正常に動作しません。
    - OMV を SSD へインストールし、管理 GUI で管理者パスワードを変更。
    - `omv-extras` → Docker/Compose/Portainer をインストール。
    - USB3.0 ストレージを接続し、`ストレージ > ファイルシステム` から EXT4 で初期化のうえマウント。
@@ -64,6 +65,25 @@ macOS Finder:
      cp .env.example .env
      nano .env
      ```
+
+### Ansible による Raspberry Pi 初期セットアップ
+- Playbook: `ansible/raspi_setup.yml`
+  - APT 更新、タイムゾーン/ホスト名設定、sudo 権限ユーザーの作成、`pi` ユーザーの削除、SSH Hardening、UFW/Fail2ban 導入と unattended-upgrades（セキュリティパッチのみ自動適用、OMV/カーネル/ブートローダーはブラックリスト）の設定、OMV 未導入時のインストーラ実行までを自動化。
+  - UID/GID は実環境の Docker コンテナ前提に合わせるため、`RASPI_USER_UID` / `RASPI_USER_GID` を環境変数で指定してから `ansible-playbook` を実行してください（未設定時は 1000 を使用）。
+  - `community.general` コレクション（`ansible-galaxy collection install community.general`）を事前に導入しておくこと。
+  - セキュリティリポジトリのみ無人適用し、それ以外（OMV、カーネル、ブートローダー等）はブラックリストで除外しています。機能アップデートは `sudo apt update && sudo apt upgrade --with-new-pkgs` を手動で実行し、適用前に changelog を確認してください。
+- インベントリ例 (ホスト側で `ansible/inventory.ini` などを別途作成):
+  ```ini
+  [raspi]
+  raspi-media ansible_host=192.168.1.10 ansible_user=pi
+  ```
+- 実行例:
+  ```bash
+  export RASPI_USER_UID=1000 RASPI_USER_GID=1000
+  ansible-playbook -i ansible/inventory.ini ansible/raspi_setup.yml
+  ```
+  - `--check` や `--diff` オプションを活用し、変更内容を必ず確認してください。
+  - `pi` ユーザー削除後は新規ユーザーへの SSH で接続し直したうえで続行すること（作業中にセッションを切らすと復旧が面倒になる）。
 
 3. **コンテナ起動**
    - 初回はイメージ取得とディレクトリ作成を行う。
