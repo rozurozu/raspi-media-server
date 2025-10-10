@@ -59,6 +59,19 @@
         admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][3] | int }}"
         admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][5] }}"
 
+    - name: Determine docker compose dotenv path
+      set_fact:
+        dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
+      tags: ['dotenv']
+
+    - name: Validate dotenv path
+      assert:
+        that:
+          - dotenv_path is defined
+          - dotenv_path | path_is_absolute
+        fail_msg: "dotenv_path は絶対パスで指定してください"
+      tags: ['dotenv']
+
     - name: Check owner of target UID
       command: getent passwd {{ target_uid }} | cut -d: -f1 || true
       register: target_uid_owner
@@ -290,6 +303,27 @@
         group: "{{ ansible_user_id }}"
         recurse: yes
       when: admin_user_home is defined and (admin_user_home | length) > 0
+
+    - name: Ensure directory for dotenv exists
+      file:
+        path: "{{ dotenv_path | dirname }}"
+        state: directory
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0755"
+      when: (dotenv_path | dirname) not in ['', '.']
+      tags: ['dotenv']
+
+    - name: Render docker-compose dotenv file
+      template:
+        src: dotenv.j2
+        dest: "{{ dotenv_path }}"
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0600"
+      vars:
+        dotenv: "{{ dotenv | default({}) }}"
+      tags: ['dotenv']
 
   handlers:
     - name: Restart SSH

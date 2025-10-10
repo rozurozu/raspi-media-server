@@ -61,12 +61,13 @@ macOS Finder:
    - `アクセス権管理 > 共有フォルダ` で `media` (例: `/srv/dev-disk-by-uuid-XXXX/media`) と `utatane` (例: `/srv/dev-disk-by-uuid-XXXX/utatane`) を作成し、手動で作成した管理ユーザーに必要な権限（読取/必要なら書込）を付与する。
 
 2. **リポジトリ配置**
-   - `git clone` もしくは本ディレクトリを OMV ホスト上の任意パスへ配置。
-   - `.env.example` をコピーして `CONFIG_ROOT` や `MEDIA_ROOT` などを実環境に合わせて修正。
-     ```bash
-     cp .env.example .env
-     nano .env
-     ```
+ - `git clone` もしくは本ディレクトリを OMV ホスト上の任意パスへ配置。
+  - `.env` は Ansible テンプレート (`ansible/templates/dotenv.j2`) から生成します。先に `ansible/group_vars/all.yml` の `dotenv` 値を環境に合わせて編集してください。
+  - 初期生成や変更反映は Playbook の `dotenv` タグで実施します。
+    ```bash
+    ansible-playbook -i ansible/inventory.ini ansible/raspi_setup.yml --tags dotenv
+    ```
+    Playbook 全体を実行する場合はタグ指定なしでも `.env` が同時に配置されます。
 
 ### Ansible による Raspberry Pi 初期セットアップ
 - Playbook: `ansible/raspi_setup.yml`
@@ -130,7 +131,7 @@ macOS Finder:
   ├─ picture/             # 非公開写真 (SMB: \\utatane\picture、アプリ連携なし/任意)
   └─ manga/               # 非公開漫画 (Komga: /utatane/books)
 ```
-実際の UUID は `ls -al /srv` や OMV GUI で確認し、`.env` の `MEDIA_ROOT` / `VIDEOS_ROOT` / `PRIVATE_VIDEOS_ROOT` / `PICTURE_ROOT` / `MANGA_PUBLIC_ROOT` / `MANGA_PRIVATE_ROOT` を更新してください（PICTURE は SMB 共有のみで使用）。
+実際の UUID は `ls -al /srv` や OMV GUI で確認し、`ansible/group_vars/all.yml` の `dotenv` → `MEDIA_ROOT` / `VIDEOS_ROOT` / `PRIVATE_VIDEOS_ROOT` / `PICTURE_ROOT` / `MANGA_PUBLIC_ROOT` / `MANGA_PRIVATE_ROOT` を更新してから `ansible-playbook ... --tags dotenv` で再生成してください（PICTURE は SMB 共有のみで使用）。
 
 ## 運用ノート
 - Jellyfin のハードウェアトランスコードは Pi では負荷が高いため、基本はソフトウェア再生を想定。解像度やビットレートを事前変換しておくと安定。

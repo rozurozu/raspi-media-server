@@ -1,0 +1,19 @@
+dotenv:
+  UID: 1000
+  GID: 1000
+  RASPI_TARGET_HOSTS: ""
+  RASPI_SET_HOSTNAME: ""
+  TZ: Asia/Tokyo
+  CONFIG_ROOT: /opt/docker
+  CACHE_ROOT: /opt/docker/cache
+  MEDIA_ROOT: /srv/dev-disk-by-uuid-XXXX/media
+  VIDEOS_ROOT: /srv/dev-disk-by-uuid-XXXX/media/video
+  PRIVATE_VIDEOS_ROOT: /srv/dev-disk-by-uuid-XXXX/utatane/video
+  PICTURE_ROOT: /srv/dev-disk-by-uuid-XXXX/media/picture
+  MANGA_PUBLIC_ROOT: /srv/dev-disk-by-uuid-XXXX/media/manga
+  MANGA_PRIVATE_ROOT: /srv/dev-disk-by-uuid-XXXX/utatane/manga
+  JELLYFIN_PUBLISHED_URL: ""
+  KOMGA_JAVA_OPTS: "-Xms512m -Xmx1024m"
+  TAILSCALE_AUTHKEY: ""
+  TAILSCALE_HOSTNAME: raspi-media
+  TAILSCALE_EXTRA_ARGS: ""

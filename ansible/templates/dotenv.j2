@@ -1,0 +1,41 @@
+# Raspberry Pi ホストで使用する UID/GID。`id -u` と `id -g` の結果に置き換えてください。
+UID={{ dotenv.UID | default(1000) }}
+GID={{ dotenv.GID | default(1000) }}
+
+# --- Ansible 用（必須定数）---
+# ansible/raspi_setup.yml を実行する際に必要な定数です。
+# Playbook は「pi ユーザー以外でログインした状態」を前提にしています。
+# 使用例（実行前に export）:
+#   export RASPI_TARGET_HOSTS=raspi
+#   export RASPI_SET_HOSTNAME=raspi-media
+#   ansible-playbook -i ansible/inventory.ini ansible/raspi_setup.yml
+RASPI_TARGET_HOSTS={{ dotenv.RASPI_TARGET_HOSTS | default('') }}
+RASPI_SET_HOSTNAME={{ dotenv.RASPI_SET_HOSTNAME | default('') }}
+
+# タイムゾーン
+TZ={{ dotenv.TZ | default('Asia/Tokyo') }}
+
+# Docker コンテナ用ディレクトリのベースパス (OS 用 SSD 上を推奨)
+CONFIG_ROOT={{ dotenv.CONFIG_ROOT | default('/opt/docker') }}
+CACHE_ROOT={{ dotenv.CACHE_ROOT | default('/opt/docker/cache') }}
+
+# メディア用ストレージのマウントパス (OMV の UUID パスに合わせて修正)
+MEDIA_ROOT={{ dotenv.MEDIA_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media') }}
+VIDEOS_ROOT={{ dotenv.VIDEOS_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/video') }}
+PRIVATE_VIDEOS_ROOT={{ dotenv.PRIVATE_VIDEOS_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/video') }}
+# 画像等を扱う場合は必要に応じて利用（現状未使用）
+# PICTURE_ROOT={{ dotenv.PICTURE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/picture') }}
+# Komga: 現状は公開(共有)ライブラリのみ使用します。非公開を使う場合は compose のコメント行を解除
+MANGA_PUBLIC_ROOT={{ dotenv.MANGA_PUBLIC_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/manga') }}
+MANGA_PRIVATE_ROOT={{ dotenv.MANGA_PRIVATE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/manga') }}
+
+# Jellyfin 公開 URL (外部から逆引きする場合のみ設定)
+JELLYFIN_PUBLISHED_URL={{ dotenv.JELLYFIN_PUBLISHED_URL | default('') }}
+
+# Komga の Java ヒープ設定 (必要に応じて調整)
+KOMGA_JAVA_OPTS={{ dotenv.KOMGA_JAVA_OPTS | default('-Xms512m -Xmx1024m') }}
+
+# Tailscale 設定。必要に応じて Auth Key や追加引数を指定。
+TAILSCALE_AUTHKEY={{ dotenv.TAILSCALE_AUTHKEY | default('') }}
+TAILSCALE_HOSTNAME={{ dotenv.TAILSCALE_HOSTNAME | default('raspi-media') }}
+TAILSCALE_EXTRA_ARGS={{ dotenv.TAILSCALE_EXTRA_ARGS | default('') }}
