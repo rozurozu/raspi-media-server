@@ -17,3 +17,5 @@ dotenv:
   TAILSCALE_AUTHKEY: ""
   TAILSCALE_HOSTNAME: raspi-media
   TAILSCALE_EXTRA_ARGS: ""
+
+install_omv: true

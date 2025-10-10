@@ -73,7 +73,7 @@
       tags: ['dotenv']
 
     - name: Check owner of target UID
-      command: getent passwd {{ target_uid }} | cut -d: -f1 || true
+      command: "getent passwd {{ target_uid }} | cut -d: -f1 || true"
       register: target_uid_owner
       changed_when: false
 
@@ -85,7 +85,7 @@
         - (target_uid_owner.stdout | trim) not in [ ansible_user_id, 'pi' ]
 
     - name: Check owner of target GID
-      command: getent group {{ target_gid }} | cut -d: -f1 || true
+      command: "getent group {{ target_gid }} | cut -d: -f1 || true"
       register: target_gid_owner
       changed_when: false
 
@@ -238,28 +238,43 @@
       notify: Restart fail2ban
 
     # ---- OMV install（未導入時のみ） ----
-    - name: Check if OMV installed
-      shell: dpkg -s openmediavault >/dev/null 2>&1 && echo present || echo absent
-      register: omv_status
-      changed_when: false
+    - name: Install OpenMediaVault (optional)
+      when: install_omv | bool
+      block:
+        - name: Check if OMV already provisioned
+          stat:
+            path: /etc/openmediavault/config.xml
+          register: omv_config
 
-    - name: Download OMV installer script
-      get_url:
-        url: https://github.com/OpenMediaVault-Plugin-Developers/installScript/raw/master/install
-        dest: /root/omv_install.sh
-        mode: '0755'
-      when: omv_status.stdout.strip() == "absent"
+        - name: Download OMV installer script
+          get_url:
+            url: https://github.com/OpenMediaVault-Plugin-Developers/installScript/raw/master/install
+            dest: /root/omv_install.sh
+            mode: '0755'
+          when: not omv_config.stat.exists
 
-    - name: Run OMV installer
-      shell: /root/omv_install.sh
-      args:
-        creates: /etc/openmediavault/config.xml
-      register: omv_install
-      when: omv_status.stdout.strip() == "absent"
+        - name: Run OMV installer without automatic reboot
+          shell: OMV_INSTALLER_SKIP_REBOOT=yes /root/omv_install.sh
+          args:
+            creates: /etc/openmediavault/config.xml
+          register: omv_install
+          when: not omv_config.stat.exists
 
-    - name: Reboot if OMV just installed (WebUIが立ち上がるように)
-      reboot:
-      when: omv_install is changed
+        - name: Ensure omv-extras package installed
+          apt:
+            name: openmediavault-omvextrasorg
+            state: present
+            update_cache: yes
+          register: omv_extras_install
+          when: omv_config.stat.exists or (omv_install is defined and not (omv_install is skipped))
+
+        - name: Reboot if OMV or omv-extras just installed
+          reboot:
+            reboot_timeout: 600
+            test_command: /bin/true
+          when:
+            - (omv_install is defined and omv_install is changed) or
+              (omv_extras_install is defined and omv_extras_install is changed)
 
     - meta: flush_handlers
 

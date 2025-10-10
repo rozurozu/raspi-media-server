@@ -51,27 +51,28 @@ macOS Finder:
   - `smb://<固定IP>/media`（認証必須）, `smb://<固定IP>/utatane`（認証必須）
 
 ## セットアップ手順
-1. **Raspberry Pi OS / OMV 事前準備**
+1. **Raspberry Pi OS 事前準備**
    - Raspberry Pi OS Lite (64-bit, Debian 12 Bookworm ベース) をクリーンインストールし、初期設定で **pi とは別の管理ユーザー** を手動作成して SSH を有効化する。
    - 手動で作成した管理ユーザーで SSH 接続し、`whoami` が期待どおりになっていることと `sudo` が利用できることを確認する（Playbook はこのユーザーで実行する）。
    - UID/GID の数値は気にしなくてよい。Playbook 実行時に自動的に 1000/1000 に揃え、ホーム配下の所有権も修正する。
-   - OMV 6 以降を SSD へインストールし、管理 GUI の初期設定（管理者パスワード変更など）を完了する。
-   - `omv-extras` → Docker/Compose/Portainer をインストール。
+   - ブートストラップ Playbook (`ansible/raspi_bootstrap.yml`) は OpenMediaVault（OMV）本体と `omv-extras` の導入まで自動化する。既に OMV を導入済み、または自分で管理したい場合は `ansible/group_vars/all.yml` の `install_omv` を `false` にするか、実行時に `-e install_omv=false` を付けてスキップする。
+   - Playbook 側で installScript の自動リブートを抑止し、Ansible の `reboot` モジュールで再起動と再接続を待つ。再起動後は自動で Play が再開するが、手元の SSH セッションが切れた場合に備えて別途ログイン手段を確保しておくこと。
+   - OMV 導入直後でも WebUI 初期設定（管理者パスワード変更、ネットワーク設定、共有フォルダ作成など）は手動で行う必要がある。
    - USB3.0 ストレージを接続し、`ストレージ > ファイルシステム` から EXT4 で初期化のうえマウント。
    - `アクセス権管理 > 共有フォルダ` で `media` (例: `/srv/dev-disk-by-uuid-XXXX/media`) と `utatane` (例: `/srv/dev-disk-by-uuid-XXXX/utatane`) を作成し、手動で作成した管理ユーザーに必要な権限（読取/必要なら書込）を付与する。
 
 2. **リポジトリ配置**
- - `git clone` もしくは本ディレクトリを OMV ホスト上の任意パスへ配置。
-  - `.env` は Ansible テンプレート (`ansible/templates/dotenv.j2`) から生成します。先に `ansible/group_vars/all.yml` の `dotenv` 値を環境に合わせて編集してください。
-  - 初期生成や変更反映は Playbook の `dotenv` タグで実施します。
+   - `git clone` もしくは本ディレクトリを OMV ホスト上の任意パスへ配置。
+   - `.env` は Ansible テンプレート (`ansible/templates/dotenv.j2`) から生成します。先に `ansible/group_vars/all.yml` の `dotenv` 値を環境に合わせて編集してください。
+   - 初期生成や変更反映は Playbook の `dotenv` タグで実施します。
     ```bash
-    ansible-playbook -i ansible/inventory.ini ansible/raspi_setup.yml --tags dotenv
+    ansible-playbook -i ansible/inventory.ini ansible/raspi_bootstrap.yml --tags dotenv
     ```
     Playbook 全体を実行する場合はタグ指定なしでも `.env` が同時に配置されます。
 
-### Ansible による Raspberry Pi 初期セットアップ
-- Playbook: `ansible/raspi_setup.yml`
-  - APT の更新、タイムゾーン/ホスト名設定、`pi` ユーザーの削除、SSH Hardening、UFW/Fail2ban 導入、unattended-upgrades（セキュリティリポジトリのみ自動適用、OMV/カーネル/ブートローダーはブラックリスト）の設定、OMV 未導入時のインストーラ実行までを自動化します。
+### Ansible による Raspberry Pi ブートストラップ
+- Playbook: `ansible/raspi_bootstrap.yml`
+  - APT の更新、タイムゾーン/ホスト名設定、`pi` ユーザーの削除、SSH Hardening、UFW/Fail2ban 導入、unattended-upgrades（セキュリティリポジトリのみ自動適用、OMV/カーネル/ブートローダーはブラックリスト）の設定、OMV 未導入時の installScript 実行と `omv-extras` 導入、必要に応じた再起動までを自動化します。
   - `pi` ユーザー削除後に、**手動で作成した管理ユーザーの UID/GID を 1000/1000 に自動で揃え、ホームディレクトリ配下の所有権も調整**します。1000 が別ユーザーで占有されている場合は Playbook が fail するので、先に手動で整理してください。
   - **必ず手動で作成した管理ユーザーで SSH 接続して実行してください。`pi` ユーザーで実行すると Playbook の途中で接続が切れます。**
   - `community.general` コレクション（`ansible-galaxy collection install community.general`）を事前に導入しておくこと。
@@ -85,10 +86,15 @@ macOS Finder:
   ```bash
   export RASPI_TARGET_HOSTS=raspi
   export RASPI_SET_HOSTNAME=raspi-media
-  ansible-playbook -i ansible/inventory.ini ansible/raspi_setup.yml
+  ansible-playbook -i ansible/inventory.ini ansible/raspi_bootstrap.yml
   ```
   - `--check` や `--diff` オプションを活用し、変更内容を必ず確認してください。
   - Playbook 実行前に手動作成した管理ユーザーで新たに SSH セッションを貼り直し、`whoami` が期待どおりであることを確認したうえで実行してください。
+
+### OMV 設定用 Playbook
+- Playbook: `ansible/omv_config.yml`
+  - OMV WebUI の初期設定が終わった後に追加設定を適用するための分割先です。現在は土台のみ用意しており、必要なタスクを適宜追加してください。
+  - 実行前に `raspi_bootstrap.yml` が完了していることを前提としています。OMV 未導入で実行すると明示的に fail します。
 
 3. **コンテナ起動**
    - 初回はイメージ取得とディレクトリ作成を行う。
@@ -103,10 +109,10 @@ macOS Finder:
      - MagicDNS を有効化すると `http://raspi-media:25600` のように名前でアクセス可能。
 
 4. **動作確認と調整**
-    - Jellyfin: ライブラリを2つ作成。
-      - 「Videos」→ フォルダ `/media/video`
-      - 「Videos Utatane」→ フォルダ `/utatane/video`
-      ユーザーごとに「Videos Utatane」の可視性を制御。
+   - Jellyfin: ライブラリを2つ作成。
+     - 「Videos」→ フォルダ `/media/video`
+     - 「Videos Utatane」→ フォルダ `/utatane/video`
+     ユーザーごとに「Videos Utatane」の可視性を制御。
    - Komga: まずは公開用のみ作成（シンプル運用）。
      - 「Manga」→ フォルダ `/media/books`（共有）
      - 私用が必要になったら「Manga Utatane」→ `/utatane/books` を追加し、ユーザーごとに可視性を制御。
