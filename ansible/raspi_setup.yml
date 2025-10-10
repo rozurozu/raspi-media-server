@@ -5,17 +5,12 @@
   become: yes
 
   vars:
-    # ✅ 必須: 新規(または既存)管理ユーザー名と公開鍵は環境変数から渡してください
-    # 未設定時は早期に fail します
-    # 例: export RASPI_NEW_USER=admin; export RASPI_NEW_USER_PUBKEY="$(cat ~/.ssh/id_ed25519.pub)"
-    new_user: "{{ lookup('env', 'RASPI_NEW_USER') }}"
-    new_user_pubkey: "{{ lookup('env', 'RASPI_NEW_USER_PUBKEY') }}"
+    # ✅ 前提: Raspberry Pi OS セットアップ時に作成した管理ユーザーで接続して実行すること
+    # Playbook は pi ユーザー削除と既存管理ユーザーの UID/GID を 1000 に揃えるのみ行う
     set_hostname: "{{ lookup('env', 'RASPI_SET_HOSTNAME') }}"
     timezone: "Asia/Tokyo"
-
-    # UID/GID は環境変数 (`RASPI_USER_UID` / `RASPI_USER_GID`) で上書き可能
-    new_user_uid: "{{ (lookup('env', 'RASPI_USER_UID') | default(1000, true)) | int }}"
-    new_user_gid: "{{ (lookup('env', 'RASPI_USER_GID') | default(1000, true)) | int }}"
+    target_uid: 1000
+    target_gid: 1000
 
     # UFWで開けるポート（OMV/SMB/NFS/SSHなど。環境に合わせて調整）
     ufw_allow_ports:
@@ -40,50 +35,55 @@
             - RASPI_TARGET_HOSTS (インベントリのホスト/グループ名)
             - RASPI_SET_HOSTNAME (セットするホスト名)
 
-    - name: Validate required variables exist (early fail)
+    - name: Ensure playbook is executed as the manually provisioned admin user
       assert:
         that:
-          - new_user is defined
-          - (new_user | length) > 0
-          - new_user_pubkey is defined
-          - (new_user_pubkey | length) > 20
-          - (new_user_pubkey | regex_search('^[A-Za-z0-9-]+\\s+[A-Za-z0-9+/=]+(\\s.*)?$'))
+          - ansible_user_id is defined
+          - ansible_user_id != 'pi'
         fail_msg: |
-          必須変数が不足または不正です。以下を環境変数で設定してください:
-            - RASPI_NEW_USER (例: admin)
-            - RASPI_NEW_USER_PUBKEY (例: $(cat ~/.ssh/id_ed25519.pub))
-          公開鍵は1行の OpenSSH 形式 (ssh-ed25519/ssh-rsa 等) を指定してください。
+          pi ユーザーのままではこの Playbook を実行できません。Raspberry Pi OS セットアップ時に作成した管理ユーザーで SSH 接続し直してください。
 
     - name: Ensure Python exists for Ansible (for super-minimal OS)
       raw: test -e /usr/bin/python3 || (apt-get update && apt-get install -y python3)
       changed_when: false
 
-  tasks:
-    # ---- UID/GID 衝突ガード（pi/new_user 以外が使用中なら中断）----
+    - name: Gather admin user entry
+      getent:
+        database: passwd
+        key: "{{ ansible_user_id }}"
+      register: admin_user_entry
+
+    - name: Record admin account facts
+      set_fact:
+        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][2] | int }}"
+        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][3] | int }}"
+        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][5] }}"
+
     - name: Check owner of target UID
-      shell: getent passwd {{ new_user_uid }} | cut -d: -f1 || true
-      register: uid_owner
+      command: getent passwd {{ target_uid }} | cut -d: -f1 || true
+      register: target_uid_owner
       changed_when: false
+
+    - name: Fail if target UID occupied by unexpected user
+      fail:
+        msg: "UID {{ target_uid }} は '{{ target_uid_owner.stdout | trim }}' が使用中のため自動変換できません。手動で調整してから再実行してください。"
+      when:
+        - (target_uid_owner.stdout | trim) != ''
+        - (target_uid_owner.stdout | trim) not in [ ansible_user_id, 'pi' ]
 
     - name: Check owner of target GID
-      shell: getent group {{ new_user_gid }} | cut -d: -f1 || true
-      register: gid_owner
+      command: getent group {{ target_gid }} | cut -d: -f1 || true
+      register: target_gid_owner
       changed_when: false
 
-    - name: Fail if UID is in use by another user
+    - name: Fail if target GID occupied by unexpected group
       fail:
-        msg: "UID {{ new_user_uid }} は既存ユーザー '{{ uid_owner.stdout | trim }}' が使用中です。new_user='{{ new_user }}' または 'pi' に一致しないため中断します。"
+        msg: "GID {{ target_gid }} は '{{ target_gid_owner.stdout | trim }}' が使用中のため自動変換できません。手動で調整してから再実行してください。"
       when:
-        - (uid_owner.stdout | trim) != ''
-        - (uid_owner.stdout | trim) not in [ new_user, 'pi' ]
+        - (target_gid_owner.stdout | trim) != ''
+        - (target_gid_owner.stdout | trim) not in [ ansible_user_id, 'pi' ]
 
-    - name: Fail if GID is in use by another group
-      fail:
-        msg: "GID {{ new_user_gid }} は既存グループ '{{ gid_owner.stdout | trim }}' が使用中です。new_user='{{ new_user }}' または 'pi' に一致しないため中断します。"
-      when:
-        - (gid_owner.stdout | trim) != ''
-        - (gid_owner.stdout | trim) not in [ new_user, 'pi' ]
-
+  tasks:
     - name: Update & upgrade apt packages
       apt:
         update_cache: yes
@@ -99,29 +99,14 @@
         name: "{{ set_hostname }}"
 
     - name: Ensure sudo installed
-      apt: { name: sudo, state: present }
+      apt:
+        name: sudo
+        state: present
 
-    - name: Ensure primary group for new user exists
+    - name: Ensure admin primary group exists
       group:
-        name: "{{ new_user }}"
+        name: "{{ ansible_user_id }}"
         state: present
-
-    - name: Create admin user
-      user:
-        name: "{{ new_user }}"
-        group: "{{ new_user }}"
-        groups: "sudo"
-        append: yes
-        shell: /bin/bash
-        create_home: yes
-        state: present
-
-    - name: Authorize SSH public key
-      authorized_key:
-        user: "{{ new_user }}"
-        key: "{{ new_user_pubkey }}"
-        state: present
-        manage_dir: yes
 
     - name: Install security/base packages
       apt:
@@ -279,17 +264,17 @@
         state: absent
       ignore_errors: yes
 
-    - name: Ensure primary group uses desired GID
+    - name: Align admin primary group GID to target
       group:
-        name: "{{ new_user }}"
-        gid: "{{ new_user_gid }}"
+        name: "{{ ansible_user_id }}"
+        gid: "{{ target_gid }}"
         state: present
 
-    - name: Ensure admin user uses desired UID/GID
+    - name: Align admin user UID/GID to target
       user:
-        name: "{{ new_user }}"
-        uid: "{{ new_user_uid }}"
-        group: "{{ new_user }}"
+        name: "{{ ansible_user_id }}"
+        uid: "{{ target_uid }}"
+        group: "{{ ansible_user_id }}"
         groups: "sudo"
         append: yes
         shell: /bin/bash
@@ -297,6 +282,14 @@
         create_home: yes
         state: present
         force: yes
+
+    - name: Fix ownership of admin home directory
+      file:
+        path: "{{ admin_user_home }}"
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        recurse: yes
+      when: admin_user_home is defined and (admin_user_home | length) > 0
 
   handlers:
     - name: Restart SSH

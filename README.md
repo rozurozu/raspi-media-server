@@ -6,7 +6,7 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
 - **OS**: OMV 6 以降を SSD へインストールし、`omv-extras` で Docker/Compose v2 を有効化。
 - **サービス**: Jellyfin (動画ライブラリ)、Komga (書籍・漫画)、Tailscale (遠隔アクセス)。ファイル共有は OMV 標準の SMB を使用。
 - **ハードウェア要件**: Raspberry Pi 4 8GB、信頼性の高い USB3.0-SATA アダプタ、十分な容量の外付けストレージ。有線 LAN + 静的 IP。
-- **権限管理**: すべてのコンテナは `UID/GID=1000` (pi ユーザー想定) で実行。OMV の共有フォルダ権限と整合を取る。
+- **権限管理**: すべてのコンテナは `UID/GID=1000`（手動で作成した管理ユーザーを想定）で実行。OMV の共有フォルダ権限と整合を取る。
 
 ## ストレージ設計
 - **OS 用 SSD**: `/opt/docker` 以下にコンテナ設定・キャッシュを配置 (可変: `CONFIG_ROOT`, `CACHE_ROOT`)。
@@ -51,12 +51,14 @@ macOS Finder:
   - `smb://<固定IP>/media`（認証必須）, `smb://<固定IP>/utatane`（認証必須）
 
 ## セットアップ手順
-1. **OMV 初期設定**
-   - ベース OS は Debian 12 (Bookworm) ベースの Raspberry Pi OS Lite (64-bit) を使用してください。OMV のインストーラは Debian 安定版以外（Testing や最新版リリース候補など）では正常に動作しません。
-   - OMV を SSD へインストールし、管理 GUI で管理者パスワードを変更。
+1. **Raspberry Pi OS / OMV 事前準備**
+   - Raspberry Pi OS Lite (64-bit, Debian 12 Bookworm ベース) をクリーンインストールし、初期設定で **pi とは別の管理ユーザー** を手動作成して SSH を有効化する。
+   - 手動で作成した管理ユーザーで SSH 接続し、`whoami` が期待どおりになっていることと `sudo` が利用できることを確認する（Playbook はこのユーザーで実行する）。
+   - UID/GID の数値は気にしなくてよい。Playbook 実行時に自動的に 1000/1000 に揃え、ホーム配下の所有権も修正する。
+   - OMV 6 以降を SSD へインストールし、管理 GUI の初期設定（管理者パスワード変更など）を完了する。
    - `omv-extras` → Docker/Compose/Portainer をインストール。
    - USB3.0 ストレージを接続し、`ストレージ > ファイルシステム` から EXT4 で初期化のうえマウント。
-   - `アクセス権管理 > 共有フォルダ` で `media` (例: `/srv/dev-disk-by-uuid-XXXX/media`) と `utatane` (例: `/srv/dev-disk-by-uuid-XXXX/utatane`) を作成し、pi ユーザーに読み取り権限（運用方針に応じて書込も）を付与。
+   - `アクセス権管理 > 共有フォルダ` で `media` (例: `/srv/dev-disk-by-uuid-XXXX/media`) と `utatane` (例: `/srv/dev-disk-by-uuid-XXXX/utatane`) を作成し、手動で作成した管理ユーザーに必要な権限（読取/必要なら書込）を付与する。
 
 2. **リポジトリ配置**
    - `git clone` もしくは本ディレクトリを OMV ホスト上の任意パスへ配置。
@@ -68,22 +70,24 @@ macOS Finder:
 
 ### Ansible による Raspberry Pi 初期セットアップ
 - Playbook: `ansible/raspi_setup.yml`
-  - APT 更新、タイムゾーン/ホスト名設定、sudo 権限ユーザーの作成、`pi` ユーザーの削除、SSH Hardening、UFW/Fail2ban 導入と unattended-upgrades（セキュリティパッチのみ自動適用、OMV/カーネル/ブートローダーはブラックリスト）の設定、OMV 未導入時のインストーラ実行までを自動化。
-  - UID/GID は実環境の Docker コンテナ前提に合わせるため、`RASPI_USER_UID` / `RASPI_USER_GID` を環境変数で指定してから `ansible-playbook` を実行してください（未設定時は 1000 を使用）。
+  - APT の更新、タイムゾーン/ホスト名設定、`pi` ユーザーの削除、SSH Hardening、UFW/Fail2ban 導入、unattended-upgrades（セキュリティリポジトリのみ自動適用、OMV/カーネル/ブートローダーはブラックリスト）の設定、OMV 未導入時のインストーラ実行までを自動化します。
+  - `pi` ユーザー削除後に、**手動で作成した管理ユーザーの UID/GID を 1000/1000 に自動で揃え、ホームディレクトリ配下の所有権も調整**します。1000 が別ユーザーで占有されている場合は Playbook が fail するので、先に手動で整理してください。
+  - **必ず手動で作成した管理ユーザーで SSH 接続して実行してください。`pi` ユーザーで実行すると Playbook の途中で接続が切れます。**
   - `community.general` コレクション（`ansible-galaxy collection install community.general`）を事前に導入しておくこと。
   - セキュリティリポジトリのみ無人適用し、それ以外（OMV、カーネル、ブートローダー等）はブラックリストで除外しています。機能アップデートは `sudo apt update && sudo apt upgrade --with-new-pkgs` を手動で実行し、適用前に changelog を確認してください。
 - インベントリ例 (ホスト側で `ansible/inventory.ini` などを別途作成):
   ```ini
   [raspi]
-  raspi-media ansible_host=192.168.1.10 ansible_user=pi
+  raspi-media ansible_host=192.168.1.10 ansible_user=mediaadmin
   ```
 - 実行例:
   ```bash
-  export RASPI_USER_UID=1000 RASPI_USER_GID=1000
+  export RASPI_TARGET_HOSTS=raspi
+  export RASPI_SET_HOSTNAME=raspi-media
   ansible-playbook -i ansible/inventory.ini ansible/raspi_setup.yml
   ```
   - `--check` や `--diff` オプションを活用し、変更内容を必ず確認してください。
-  - `pi` ユーザー削除後は新規ユーザーへの SSH で接続し直したうえで続行すること（作業中にセッションを切らすと復旧が面倒になる）。
+  - Playbook 実行前に手動作成した管理ユーザーで新たに SSH セッションを貼り直し、`whoami` が期待どおりであることを確認したうえで実行してください。
 
 3. **コンテナ起動**
    - 初回はイメージ取得とディレクトリ作成を行う。
