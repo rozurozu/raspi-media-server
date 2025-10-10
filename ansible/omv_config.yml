@@ -5,6 +5,7 @@
   become: yes
   collections:
     - community.docker
+    - community.general
 
   pre_tasks:
     - name: Validate required environment for hosts
@@ -58,6 +59,10 @@
       fail:
         msg: "{{ dotenv_path }} が見つかりません。raspi_bootstrap.yml で dotenv を生成してください。"
       when: not dotenv_file.stat.exists
+
+    - name: Load dotenv values
+      set_fact:
+        dotenv: "{{ lookup('community.general.read_dotenv', dotenv_path) }}"
 
     - name: Derive compose project path
       set_fact:
