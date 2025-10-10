@@ -3,6 +3,8 @@
   hosts: "{{ lookup('env', 'RASPI_TARGET_HOSTS') }}"
   gather_facts: yes
   become: yes
+  collections:
+    - community.docker
 
   pre_tasks:
     - name: Validate required environment for hosts
@@ -23,8 +25,101 @@
         msg: "OMV が見つかりません。先に raspi_bootstrap.yml を完了してください。"
       when: not omv_config.stat.exists
 
+    - name: Gather admin user entry
+      getent:
+        database: passwd
+        key: "{{ ansible_user_id }}"
+      register: admin_user_entry
+
+    - name: Record admin account facts
+      set_fact:
+        admin_account_name: "{{ ansible_user_id }}"
+        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][2] | int }}"
+        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][3] | int }}"
+        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][5] }}"
+
+    - name: Determine docker compose dotenv path
+      set_fact:
+        dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
+
+    - name: Validate dotenv path
+      assert:
+        that:
+          - dotenv_path is defined
+          - dotenv_path | path_is_absolute
+        fail_msg: "dotenv_path は絶対パスで指定してください"
+
+    - name: Check dotenv template output exists
+      stat:
+        path: "{{ dotenv_path }}"
+      register: dotenv_file
+
+    - name: Abort when dotenv file is missing
+      fail:
+        msg: "{{ dotenv_path }} が見つかりません。raspi_bootstrap.yml で dotenv を生成してください。"
+      when: not dotenv_file.stat.exists
+
+    - name: Derive compose project path
+      set_fact:
+        compose_project_src: "{{ dotenv_path | dirname }}"
+
+    - name: Ensure docker compose project directory exists
+      stat:
+        path: "{{ compose_project_src }}/docker-compose.yml"
+      register: compose_file
+
+    - name: Abort when docker compose manifest is missing
+      fail:
+        msg: "{{ compose_project_src }}/docker-compose.yml が見つかりません。リポジトリ配置と .env の生成を確認してください。"
+      when: not compose_file.stat.exists
+
   tasks:
-    - name: Placeholder for OMV configuration tasks
+    - name: Install Docker engine and helpers
+      apt:
+        name:
+          - docker.io
+          - docker-compose-plugin
+          - python3-docker
+        state: present
+        update_cache: yes
+
+    - name: Ensure docker service enabled
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Ensure docker configuration directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ admin_account_name }}"
+        group: "{{ admin_account_name }}"
+        mode: "0755"
+      loop:
+        - "{{ dotenv.CONFIG_ROOT }}"
+        - "{{ dotenv.CONFIG_ROOT }}/jellyfin"
+        - "{{ dotenv.CONFIG_ROOT }}/jellyfin/config"
+        - "{{ dotenv.CONFIG_ROOT }}/jellyfin/cache"
+        - "{{ dotenv.CONFIG_ROOT }}/komga"
+        - "{{ dotenv.CONFIG_ROOT }}/komga/config"
+        - "{{ dotenv.CONFIG_ROOT }}/tailscale"
+        - "{{ dotenv.CONFIG_ROOT }}/tailscale/state"
+        - "{{ dotenv.CACHE_ROOT }}"
+        - "{{ dotenv.CACHE_ROOT }}/jellyfin"
+        - "{{ dotenv.CACHE_ROOT }}/jellyfin/cache"
+      when: item is not none and (item | length) > 0
+
+    - name: Ensure docker compose project is up to date
+      community.docker.docker_compose_v2:
+        project_src: "{{ compose_project_src }}"
+        files:
+          - docker-compose.yml
+        pull: true
+        state: present
+      register: compose_result
+
+    - name: Report docker compose changes
       debug:
-        msg: "OMV 設定タスクをここに追加してください。"
-      tags: ['always']
+        msg: "docker compose で変更が発生しました"
+      when: compose_result is changed

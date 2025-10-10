@@ -93,30 +93,30 @@ macOS Finder:
 
 ### OMV 設定用 Playbook
 - Playbook: `ansible/omv_config.yml`
-  - OMV WebUI の初期設定が終わった後に追加設定を適用するための分割先です。現在は土台のみ用意しており、必要なタスクを適宜追加してください。
-  - 実行前に `raspi_bootstrap.yml` が完了していることを前提としています。OMV 未導入で実行すると明示的に fail します。
+  - OMV 導入後に Docker エンジン (`docker.io`, `docker-compose-plugin`) と Python Docker SDK (`python3-docker`) をインストールし、`docker` サービスを起動・自動起動化します。
+  - `.env` と `docker-compose.yml` を前提に、ホスト側ディレクトリ（`CONFIG_ROOT` / `CACHE_ROOT`）を作成し、Jellyfin / Komga / Tailscale を `docker compose` で起動します。
+  - `community.docker` コレクション（`ansible-galaxy collection install community.docker`）が必要です。`community.general` と合わせて事前に導入してください。
+  - 実行前に `raspi_bootstrap.yml` が完了していることを前提としています。OMV 未導入または `.env` 未生成の場合は明示的に fail します。
 
-3. **コンテナ起動**
-   - 初回はイメージ取得とディレクトリ作成を行う。
+3. **Ansible Playbook 実行**
+   - `raspi_bootstrap.yml` で OS 側の初期設定と OMV 導入まで完了させる。
      ```bash
-     docker compose pull
-     docker compose up -d
+     export RASPI_TARGET_HOSTS=raspi
+     export RASPI_SET_HOSTNAME=raspi-media
+     ansible-playbook -i ansible/inventory.ini ansible/raspi_bootstrap.yml
      ```
-   - Jellyfin: `http://<固定IP>:8096`
-   - Komga: `http://<固定IP>:25600`
-   - SMB 共有（OMV 標準）: Windows `\\<固定IP>\<共有名>` / macOS `smb://<固定IP>/<共有名>`
-   - Tailscale: `TAILSCALE_AUTHKEY` を設定しておくか、`docker compose exec tailscale tailscale up` でログイン。
-     - MagicDNS を有効化すると `http://raspi-media:25600` のように名前でアクセス可能。
+   - OMV WebUI にログインし、管理者パスワード変更・ネットワーク設定・共有フォルダ作成など初期設定を済ませる。
+   - `omv_config.yml` で Docker エンジン導入とコンテナ起動を自動化する。
+     ```bash
+     export RASPI_TARGET_HOSTS=raspi
+     ansible-playbook -i ansible/inventory.ini ansible/omv_config.yml
+     ```
 
 4. **動作確認と調整**
-   - Jellyfin: ライブラリを2つ作成。
-     - 「Videos」→ フォルダ `/media/video`
-     - 「Videos Utatane」→ フォルダ `/utatane/video`
-     ユーザーごとに「Videos Utatane」の可視性を制御。
-   - Komga: まずは公開用のみ作成（シンプル運用）。
-     - 「Manga」→ フォルダ `/media/books`（共有）
-     - 私用が必要になったら「Manga Utatane」→ `/utatane/books` を追加し、ユーザーごとに可視性を制御。
-   - OMV の SMB 共有で `media` と `utatane` の読み書きを確認。必要なら OMV 側 ACL を再調整。
+   - Jellyfin: WebUI `http://<固定IP>:8096` へアクセスし、ライブラリ「Videos」を `/media/video`、「Videos Utatane」を `/utatane/video` に紐付ける（後者はユーザーごとに可視性を調整）。
+   - Komga: WebUI `http://<固定IP>:25600` でライブラリ「Manga」を `/media/books` に作成。必要になったら「Manga Utatane」を `/utatane/books` で追加し、対象ユーザーのみ可視化する。
+   - SMB 共有（OMV 標準）: Windows `\\<固定IP>\<共有名>` / macOS `smb://<固定IP>/<共有名>` でアクセスできるか確認し、必要に応じて OMV 側 ACL を調整。
+   - Tailscale: `TAILSCALE_AUTHKEY` を事前投入していない場合は `docker exec tailscale tailscale up` でログインし、MagicDNS を有効化して `http://raspi-media:25600` のように名前解決できるか確認する。
    - Tailscale 管理画面でノード登録とサブネット設定を確認。
 
 ## ディレクトリ構成 (推奨)
