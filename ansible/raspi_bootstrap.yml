@@ -1,39 +1,22 @@
 ---
 - name: Raspberry Pi 初期セットアップ
-  hosts: "{{ lookup('env', 'RASPI_TARGET_HOSTS') }}"
+  hosts: "{{ raspi_target_hosts }}"
   gather_facts: yes
   become: yes
 
-  vars:
-    # ✅ 前提: Raspberry Pi OS セットアップ時に作成した管理ユーザーで接続して実行すること
-    # Playbook は pi ユーザー削除と既存管理ユーザーの UID/GID を 1000 に揃えるのみ行う
-    set_hostname: "{{ lookup('env', 'RASPI_SET_HOSTNAME') }}"
-    timezone: "Asia/Tokyo"
-    target_uid: 1000
-    target_gid: 1000
-
-    # UFWで開けるポート（OMV/SMB/NFS/SSHなど。環境に合わせて調整）
-    ufw_allow_ports:
-      - "22"          # SSH
-      - "80"          # HTTP (OMV WebUI)
-      - "443"         # HTTPS (OMV WebUI)
-      - "139"         # SMB
-      - "445"         # SMB
-      - "111"         # NFS rpcbind
-      - "2049"        # NFS
-      - "892"         # NFS mountd (環境で必要なら)
-      - "873"         # rsync (必要なら)
+  # ✅ 前提: Raspberry Pi OS セットアップ時に作成した管理ユーザーで接続して実行すること
+  # Playbook は pi ユーザー削除と既存管理ユーザーの UID/GID を 1000 に揃えるのみ行う
 
   pre_tasks:
     - name: Validate required environment for hosts and hostname
       assert:
         that:
-          - (lookup('env','RASPI_TARGET_HOSTS') | length) > 0
+          - (raspi_target_hosts | length) > 0
           - (set_hostname | length) > 0
         fail_msg: |
           必須変数が不足しています。以下を環境変数で設定してください:
-            - RASPI_TARGET_HOSTS (インベントリのホスト/グループ名)
-            - RASPI_SET_HOSTNAME (セットするホスト名)
+            - raspi_target_hosts (インベントリのホスト/グループ名)
+            - set_hostname (セットするホスト名)
 
     - name: Ensure playbook is executed as the manually provisioned admin user
       assert:
@@ -58,6 +41,33 @@
         admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][2] | int }}"
         admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][3] | int }}"
         admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][5] }}"
+
+    - name: Resolve admin authorized keys source
+      set_fact:
+        admin_authorized_keys_input: "{{ admin_authorized_keys | default(admin_authorized_keys_env, true) }}"
+
+    - name: Normalize admin authorized keys list
+      set_fact:
+        admin_authorized_keys_list: >-
+          {{
+            (
+              [admin_authorized_keys_input] if admin_authorized_keys_input is string else (
+                admin_authorized_keys_input | list
+                if (admin_authorized_keys_input is iterable and admin_authorized_keys_input is not string)
+                else []
+              )
+            )
+            | map('trim')
+            | select('length')
+            | list
+          }}
+
+    - name: Ensure admin authorized keys provided
+      assert:
+        that:
+          - admin_authorized_keys_list | length > 0
+        fail_msg: |
+          管理ユーザーの公開鍵が未指定です。環境変数 RASPI_ADMIN_AUTHORIZED_KEYS で改行区切りの公開鍵を渡すか、admin_authorized_keys に有効なキー一覧を指定してください。
 
     - name: Determine docker compose dotenv path
       set_fact:
@@ -179,6 +189,23 @@
         state: started
         enabled: yes
         masked: no
+
+    # ---- Admin SSH key provisioning ----
+    - name: Ensure admin .ssh directory exists
+      file:
+        path: "{{ admin_user_home }}/.ssh"
+        state: directory
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_id }}"
+        mode: "0700"
+      when: admin_user_home is defined and (admin_user_home | length) > 0
+
+    - name: Install admin authorized keys
+      authorized_key:
+        user: "{{ ansible_user_id }}"
+        key: "{{ item }}"
+        state: present
+      loop: "{{ admin_authorized_keys_list }}"
 
     # ---- SSH hardening ----
     - name: Disable root login over SSH

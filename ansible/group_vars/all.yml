@@ -1,9 +1,30 @@
+set_hostname: ""
+raspi_target_hosts: ""
+admin_authorized_keys: ""
+timezone: "Asia/Tokyo"
+target_uid: 1000
+target_gid: 1000
+admin_authorized_keys_env: ""
+ansible_user: "" # raspiの管理ユーザー
+
+# UFWで開けるポート（OMV/SMB/NFS/SSHなど。環境に合わせて調整）
+ufw_allow_ports:
+  - "22"          # SSH
+  - "80"          # HTTP (OMV WebUI)
+  - "443"         # HTTPS (OMV WebUI)
+  - "139"         # SMB
+  - "445"         # SMB
+  - "111"         # NFS rpcbind
+  - "2049"        # NFS
+  - "892"         # NFS mountd (環境で必要なら)
+  - "873"         # rsync (必要なら)
+
 dotenv:
-  UID: 1000
-  GID: 1000
-  RASPI_TARGET_HOSTS: ""
-  RASPI_SET_HOSTNAME: ""
-  TZ: Asia/Tokyo
+  UID: "{{ target_uid }}"
+  GID: "{{ target_gid }}"
+  RASPI_TARGET_HOSTS: "{{ raspi_target_hosts }}"
+  RASPI_SET_HOSTNAME: "{{ set_hostname }}"
+  TZ: "{{ timezone }}"
   CONFIG_ROOT: /opt/docker
   CACHE_ROOT: /opt/docker/cache
   MEDIA_ROOT: /srv/dev-disk-by-uuid-XXXX/media
