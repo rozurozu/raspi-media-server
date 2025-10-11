@@ -46,28 +46,25 @@
       set_fact:
         admin_authorized_keys_input: "{{ admin_authorized_keys | default(admin_authorized_keys_env, true) }}"
 
-    - name: Normalize admin authorized keys list
+    - name: Normalize admin authorized key
       set_fact:
-        admin_authorized_keys_list: >-
-          {{
-            (
-              [admin_authorized_keys_input] if admin_authorized_keys_input is string else (
-                admin_authorized_keys_input | list
-                if (admin_authorized_keys_input is iterable and admin_authorized_keys_input is not string)
-                else []
-              )
-            )
-            | map('trim')
-            | select('length')
-            | list
-          }}
+        admin_authorized_key: "{{ admin_authorized_keys_input | string | trim }}"
 
-    - name: Ensure admin authorized keys provided
+    - name: Ensure admin authorized key provided
       assert:
         that:
-          - admin_authorized_keys_list | length > 0
+          - admin_authorized_key is string
+          - admin_authorized_key | length > 0
         fail_msg: |
-          管理ユーザーの公開鍵が未指定です。環境変数 RASPI_ADMIN_AUTHORIZED_KEYS で改行区切りの公開鍵を渡すか、admin_authorized_keys に有効なキー一覧を指定してください。
+          管理ユーザーの公開鍵が未指定です。環境変数 RASPI_ADMIN_AUTHORIZED_KEYS に単一の公開鍵を指定してください。
+
+    - name: Ensure admin authorized key does not contain newlines
+      assert:
+        that:
+          - '\n' not in admin_authorized_key
+          - '\r' not in admin_authorized_key
+        fail_msg: |
+          公開鍵は単一行で指定してください。複数鍵や改行を含む値はサポートしていません。
 
     - name: Determine docker compose dotenv path
       set_fact:
@@ -200,12 +197,11 @@
         mode: "0700"
       when: admin_user_home is defined and (admin_user_home | length) > 0
 
-    - name: Install admin authorized keys
+    - name: Install admin authorized key
       authorized_key:
         user: "{{ ansible_user_id }}"
-        key: "{{ item }}"
+        key: "{{ admin_authorized_key }}"
         state: present
-      loop: "{{ admin_authorized_keys_list }}"
 
     # ---- SSH hardening ----
     - name: Disable root login over SSH
