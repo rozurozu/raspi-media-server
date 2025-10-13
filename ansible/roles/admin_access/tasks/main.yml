@@ -8,8 +8,9 @@
     mode: "0700"
   when: admin_user_home is defined and (admin_user_home | length) > 0
 
-- name: Install admin authorized key
+- name: Install admin authorized keys
   authorized_key:
     user: "{{ ansible_user_id }}"
-    key: "{{ admin_authorized_key }}"
+    key: "{{ item }}"
     state: present
+  loop: "{{ admin_authorized_keys_list }}"

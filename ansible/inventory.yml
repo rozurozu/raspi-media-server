@@ -1,0 +1,8 @@
+# Raspberry Pi 用インベントリ（YAML 形式）
+all:
+  children:
+    raspi:
+      hosts:
+        pinas:
+          ansible_host: pinas
+          ansible_python_interpreter: /usr/bin/python3

@@ -1,11 +1,16 @@
-set_hostname: ""
-raspi_target_hosts: ""
-admin_authorized_keys: ""
+# vars_files:
+  # - ../vault/all.yml
+
+ansible_user: "yoiko" # raspiの管理ユーザー
+set_hostname: "raspi-nas" # ホスト名
+admin_authorized_key:
+  - "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+dotenv_path: "" # raspi内のdotenvパス。空文字ならデフォルトで管理ユーザーのホームディレクトリに配置
 timezone: "Asia/Tokyo"
 target_uid: 1000
 target_gid: 1000
-admin_authorized_keys_env: ""
-ansible_user: "" # raspiの管理ユーザー
+
+install_omv: true
 
 # UFWで開けるポート（OMV/SMB/NFS/SSHなど。環境に合わせて調整）
 ufw_allow_ports:
@@ -38,5 +43,3 @@ dotenv:
   TAILSCALE_AUTHKEY: ""
   TAILSCALE_HOSTNAME: raspi-media
   TAILSCALE_EXTRA_ARGS: ""
-
-install_omv: true

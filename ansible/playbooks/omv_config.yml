@@ -1,20 +1,13 @@
 ---
 - name: OpenMediaVault 設定適用
-  hosts: "{{ lookup('env', 'RASPI_TARGET_HOSTS') }}"
-  gather_facts: yes
+  hosts: raspi
+  gather_facts: false
   become: yes
   collections:
     - community.docker
     - community.general
 
   pre_tasks:
-    - name: Validate required environment for hosts
-      assert:
-        that:
-          - (lookup('env','RASPI_TARGET_HOSTS') | length) > 0
-        fail_msg: |
-          必須変数が不足しています。以下を環境変数で設定してください:
-            - RASPI_TARGET_HOSTS (インベントリのホスト/グループ名)
 
     - name: Check OpenMediaVault presence
       stat:

@@ -4,4 +4,4 @@
 # Playbook 内の reboot タスクが完了を待つため後続も自動的に継続する
 - import_playbook: raspi_bootstrap.yml
 - import_playbook: omv_config.yml
-- import_playbook: services_config.yml
+# - import_playbook:services_config.yml

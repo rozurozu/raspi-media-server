@@ -1,0 +1,17 @@
+---
+- name: Lookup {{ check.type }}
+  command: "getent {{ check.db }} {{ check.id }}"
+  register: check_result
+  failed_when: false
+  changed_when: false
+
+- name: Extract {{ check.type }} owner
+  set_fact:
+    check_owner: "{{ (check_result.stdout | default('')).split(':')[0] | default('', true) | trim }}"
+
+- name: Fail if {{ check.type }} in use
+  fail:
+    msg: "{{ check.type }} {{ check.id }} は '{{ check_owner }}' が使用中のため自動変換できません。手動で調整してから再実行してください。"
+  when:
+    - check_owner != ''
+    - check_owner != ansible_user

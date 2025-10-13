@@ -1,76 +1,52 @@
 ---
 - name: Raspberry Pi 初期セットアップ
-  hosts: "{{ raspi_target_hosts }}"
+  hosts: raspi
   gather_facts: yes
   become: yes
-
   # ✅ 前提: Raspberry Pi OS セットアップ時に作成した管理ユーザーで接続して実行すること
-  # Playbook は pi ユーザー削除と既存管理ユーザーの UID/GID を 1000 に揃えるのみ行う
 
   pre_tasks:
-    - name: Validate required environment for hosts and hostname
-      assert:
-        that:
-          - (raspi_target_hosts | length) > 0
-          - (set_hostname | length) > 0
-        fail_msg: |
-          必須変数が不足しています。以下を環境変数で設定してください:
-            - raspi_target_hosts (インベントリのホスト/グループ名)
-            - set_hostname (セットするホスト名)
 
-    - name: Ensure playbook is executed as the manually provisioned admin user
+    - name: 管理ユーザーが問題ないか確認する
       assert:
         that:
-          - ansible_user_id is defined
-          - ansible_user_id != 'pi'
+          - ansible_user is defined
+          - ansible_user != 'pi'
         fail_msg: |
           pi ユーザーのままではこの Playbook を実行できません。Raspberry Pi OS セットアップ時に作成した管理ユーザーで SSH 接続し直してください。
 
-    - name: Ensure Python exists for Ansible (for super-minimal OS)
-      raw: test -e /usr/bin/python3 || (apt-get update && apt-get install -y python3)
+    - name: Pythonが存在するか確認する
+      raw: test -e /usr/bin/python3 || (apt-get update -y && apt-get install -y python3)
       changed_when: false
 
     - name: Gather admin user entry
       getent:
         database: passwd
-        key: "{{ ansible_user_id }}"
+        key: "{{ ansible_user }}"
       register: admin_user_entry
 
     - name: Record admin account facts
       set_fact:
-        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][2] | int }}"
-        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][3] | int }}"
-        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][5] }}"
+        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
+        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][3] | int }}"
+        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][5] }}"
 
-    - name: Load admin authorized keys from environment
-      set_fact:
-        admin_authorized_keys_env: "{{ lookup('env', 'RASPI_ADMIN_AUTHORIZED_KEYS') | default('', true) }}"
-
-    - name: Resolve admin authorized keys source
-      set_fact:
-        admin_authorized_keys_input: "{{ admin_authorized_keys | default(admin_authorized_keys_env, true) }}"
-
-    - name: Normalize admin authorized key
-      set_fact:
-        admin_authorized_key: "{{ admin_authorized_keys_input | string | trim }}"
-
-    - name: Ensure admin authorized key provided
+    - name: 公開鍵が未指定でないか確認する
       assert:
         that:
-          - admin_authorized_key is string
           - admin_authorized_key | length > 0
         fail_msg: |
-          管理ユーザーの公開鍵が未指定です。環境変数 RASPI_ADMIN_AUTHORIZED_KEYS に単一の公開鍵を指定してください。
+          管理ユーザーの公開鍵が未指定です。group_vars で admin_authorized_key を設定してください。
 
-    - name: Ensure admin authorized key does not contain newlines
+    - name: 公開鍵の形式が問題ないか確認する
       assert:
         that:
           - '"\n" not in admin_authorized_key'
           - '"\r" not in admin_authorized_key'
         fail_msg: |
-          公開鍵は単一行で指定してください。複数鍵や改行を含む値はサポートしていません。
+          公開鍵は単一行で指定してください。改行を含む値はサポートしていません。
 
-    - name: Determine docker compose dotenv path
+    - name: dotenvのパスを決定する
       set_fact:
         dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
       tags: ['dotenv']
@@ -79,33 +55,21 @@
       assert:
         that:
           - dotenv_path is defined
-          - dotenv_path | path_is_absolute
+          - dotenv_path is abs
         fail_msg: "dotenv_path は絶対パスで指定してください"
       tags: ['dotenv']
 
-    - name: Check owner of target UID
-      command: "getent passwd {{ target_uid }} | cut -d: -f1 || true"
-      register: target_uid_owner
-      changed_when: false
+    # ターゲットのUID/GIDが使用できるか確認する
+    - name: Check UID/GID conflicts
+      vars:
+        checks:
+          - { type: 'UID', db: 'passwd', id: "{{ target_uid }}" }
+          - { type: 'GID', db: 'group',  id: "{{ target_gid }}" }
+      include_tasks: tasks/check_uid_gid.yml
+      loop: "{{ checks }}"
+      loop_control:
+        loop_var: check
 
-    - name: Fail if target UID occupied by unexpected user
-      fail:
-        msg: "UID {{ target_uid }} は '{{ target_uid_owner.stdout | trim }}' が使用中のため自動変換できません。手動で調整してから再実行してください。"
-      when:
-        - (target_uid_owner.stdout | trim) != ''
-        - (target_uid_owner.stdout | trim) not in [ ansible_user_id, 'pi' ]
-
-    - name: Check owner of target GID
-      command: "getent group {{ target_gid }} | cut -d: -f1 || true"
-      register: target_gid_owner
-      changed_when: false
-
-    - name: Fail if target GID occupied by unexpected group
-      fail:
-        msg: "GID {{ target_gid }} は '{{ target_gid_owner.stdout | trim }}' が使用中のため自動変換できません。手動で調整してから再実行してください。"
-      when:
-        - (target_gid_owner.stdout | trim) != ''
-        - (target_gid_owner.stdout | trim) not in [ ansible_user_id, 'pi' ]
 
   tasks:
     - import_role:

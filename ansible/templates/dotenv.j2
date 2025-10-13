@@ -2,16 +2,6 @@
 UID={{ dotenv.UID | default(1000) }}
 GID={{ dotenv.GID | default(1000) }}
 
-# --- Ansible 用（必須定数）---
-# ansible/raspi_bootstrap.yml を実行する際に必要な定数です。
-# Playbook は「pi ユーザー以外でログインした状態」を前提にしています。
-# 使用例（実行前に export）:
-#   export RASPI_TARGET_HOSTS=raspi
-#   export RASPI_SET_HOSTNAME=raspi-media
-#   ansible-playbook -i ansible/inventory.ini ansible/raspi_bootstrap.yml
-RASPI_TARGET_HOSTS={{ dotenv.RASPI_TARGET_HOSTS | default('') }}
-RASPI_SET_HOSTNAME={{ dotenv.RASPI_SET_HOSTNAME | default('') }}
-
 # タイムゾーン
 TZ={{ dotenv.TZ | default('Asia/Tokyo') }}
 
