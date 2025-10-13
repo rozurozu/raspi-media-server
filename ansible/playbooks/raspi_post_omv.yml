@@ -5,14 +5,6 @@
   become: yes
 
   pre_tasks:
-    - name: 管理ユーザーが問題ないか確認する
-      assert:
-        that:
-          - ansible_user is defined
-          - ansible_user != 'pi'
-        fail_msg: |
-          pi ユーザーのままではこの Playbook を実行できません。Raspberry Pi OS セットアップ時に作成した管理ユーザーで SSH 接続し直してください。
-
     - name: OMV が導入済みか確認する
       stat:
         path: /etc/openmediavault/config.xml
@@ -23,40 +15,7 @@
         msg: "OMV が見つかりません。先に raspi_bootstrap.yml を完了してください。"
       when: not omv_config.stat.exists
 
-    - name: 管理ユーザー情報の取得
-      getent:
-        database: passwd
-        key: "{{ ansible_user }}"
-      register: admin_user_entry
-
-    - name: 管理ユーザー情報の事実設定
-      set_fact:
-        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][1] | int }}"
-        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
-        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][4] }}"
-
-    - name: dotenvのパスを決定する
-      set_fact:
-        dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
-      tags: ['dotenv']
-
-    - name: Validate dotenv path
-      assert:
-        that:
-          - dotenv_path is defined
-          - dotenv_path is abs
-        fail_msg: "dotenv_path は絶対パスで指定してください"
-      tags: ['dotenv']
-
-    - name: Check UID/GID conflicts
-      vars:
-        checks:
-          - { type: 'UID', db: 'passwd', id: "{{ target_uid }}" }
-          - { type: 'GID', db: 'group',  id: "{{ target_gid }}" }
-      include_tasks: tasks/check_uid_gid.yml
-      loop: "{{ checks }}"
-      loop_control:
-        loop_var: check
+    - import_tasks: tasks/pre_common.yml
 
   tasks:
     - import_role:

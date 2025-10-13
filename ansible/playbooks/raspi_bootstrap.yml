@@ -6,30 +6,11 @@
   # ✅ 前提: Raspberry Pi OS セットアップ時に作成した管理ユーザーで接続して実行すること
 
   pre_tasks:
-
-    - name: 管理ユーザーが問題ないか確認する
-      assert:
-        that:
-          - ansible_user is defined
-          - ansible_user != 'pi'
-        fail_msg: |
-          pi ユーザーのままではこの Playbook を実行できません。Raspberry Pi OS セットアップ時に作成した管理ユーザーで SSH 接続し直してください。
-
     - name: Pythonが存在するか確認する
       raw: test -e /usr/bin/python3 || (apt-get update -y && apt-get install -y python3)
       changed_when: false
 
-    - name: Gather admin user entry
-      getent:
-        database: passwd
-        key: "{{ ansible_user }}"
-      register: admin_user_entry
-
-    - name: Record admin account facts
-      set_fact:
-        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][1] | int }}"
-        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
-        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][4] }}"
+    - import_tasks: tasks/pre_common.yml
 
     - name: 公開鍵が未指定でないか確認する
       assert:
@@ -46,29 +27,7 @@
         fail_msg: |
           公開鍵は単一行で指定してください。改行を含む値はサポートしていません。
 
-    - name: dotenvのパスを決定する
-      set_fact:
-        dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
-      tags: ['dotenv']
 
-    - name: Validate dotenv path
-      assert:
-        that:
-          - dotenv_path is defined
-          - dotenv_path is abs
-        fail_msg: "dotenv_path は絶対パスで指定してください"
-      tags: ['dotenv']
-
-    # ターゲットのUID/GIDが使用できるか確認する
-    - name: Check UID/GID conflicts
-      vars:
-        checks:
-          - { type: 'UID', db: 'passwd', id: "{{ target_uid }}" }
-          - { type: 'GID', db: 'group',  id: "{{ target_gid }}" }
-      include_tasks: tasks/check_uid_gid.yml
-      loop: "{{ checks }}"
-      loop_control:
-        loop_var: check
 
 
   tasks:

@@ -1,0 +1,44 @@
+---
+- name: 管理ユーザーが問題ないか確認する
+  assert:
+    that:
+      - ansible_user is defined
+      - ansible_user != 'pi'
+    fail_msg: |
+      pi ユーザーのままではこの Playbook を実行できません。Raspberry Pi OS セットアップ時に作成した管理ユーザーで SSH 接続し直してください。
+
+- name: 管理ユーザー情報の取得
+  getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+  register: admin_user_entry
+
+- name: 管理ユーザー情報の事実設定
+  set_fact:
+    admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
+    admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][3] | int }}"
+    admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][5] }}"
+
+- name: dotenvのパスを決定する
+  set_fact:
+    dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
+  tags: ['dotenv']
+
+- name: Validate dotenv path
+  assert:
+    that:
+      - dotenv_path is defined
+      - dotenv_path | path_is_absolute
+    fail_msg: "dotenv_path は絶対パスで指定してください"
+  tags: ['dotenv']
+
+- name: Check UID/GID conflicts
+  vars:
+    checks:
+      - { type: 'UID', db: 'passwd', id: "{{ target_uid }}" }
+      - { type: 'GID', db: 'group',  id: "{{ target_gid }}" }
+  include_tasks: tasks/check_uid_gid.yml
+  loop: "{{ checks }}"
+  loop_control:
+    loop_var: check
+
