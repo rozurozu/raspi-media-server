@@ -9,6 +9,11 @@ timezone: "Asia/Tokyo"
 target_uid: 1000
 target_gid: 1000
 
+# OMV がマウントするデバイスの UUID（`/srv/dev-disk-by-uuid-<UUID>`）
+storage_uuid: "6a6025aa-94a1-4552-a1ee-676db616b634"
+# UUID から導出されるマウントルート。UUID 未設定時はプレースホルダ `XXXX` を使う。
+storage_mount_root: "/srv/dev-disk-by-uuid-{{ storage_uuid | default('XXXX', true) }}"
+
 install_omv: true
 
 # UFWで開けるポート（OMV/SMB/NFS/SSHなど。環境に合わせて調整）
@@ -31,12 +36,12 @@ dotenv:
   TZ: "{{ timezone }}"
   CONFIG_ROOT: /opt/docker
   CACHE_ROOT: /opt/docker/cache
-  MEDIA_ROOT: /srv/dev-disk-by-uuid-XXXX/media
-  VIDEOS_ROOT: /srv/dev-disk-by-uuid-XXXX/media/video
-  PRIVATE_VIDEOS_ROOT: /srv/dev-disk-by-uuid-XXXX/utatane/video
-  PICTURE_ROOT: /srv/dev-disk-by-uuid-XXXX/media/picture
-  MANGA_PUBLIC_ROOT: /srv/dev-disk-by-uuid-XXXX/media/manga
-  MANGA_PRIVATE_ROOT: /srv/dev-disk-by-uuid-XXXX/utatane/manga
+  MEDIA_ROOT: "{{ storage_mount_root }}/media"
+  VIDEOS_ROOT: "{{ storage_mount_root }}/media/video"
+  PRIVATE_VIDEOS_ROOT: "{{ storage_mount_root }}/utatane/video"
+  PICTURE_ROOT: "{{ storage_mount_root }}/media/picture"
+  MANGA_PUBLIC_ROOT: "{{ storage_mount_root }}/media/manga"
+  MANGA_PRIVATE_ROOT: "{{ storage_mount_root }}/utatane/manga"
   JELLYFIN_PUBLISHED_URL: ""
   KOMGA_JAVA_OPTS: "-Xms512m -Xmx1024m"
   TAILSCALE_AUTHKEY: ""
