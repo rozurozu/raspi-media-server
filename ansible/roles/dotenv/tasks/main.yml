@@ -3,8 +3,8 @@
   file:
     path: "{{ dotenv_path | dirname }}"
     state: directory
-    owner: "{{ ansible_user_id }}"
-    group: "{{ ansible_user_id }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: "0755"
   when: (dotenv_path | dirname) not in ['', '.']
   tags: ['dotenv']
@@ -13,8 +13,8 @@
   template:
     src: dotenv.j2
     dest: "{{ dotenv_path }}"
-    owner: "{{ ansible_user_id }}"
-    group: "{{ ansible_user_id }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: "0600"
   vars:
     dotenv: "{{ dotenv | default({}) }}"

@@ -3,8 +3,7 @@
 
 ansible_user: "yoiko" # raspiの管理ユーザー
 set_hostname: "raspi-nas" # ホスト名
-admin_authorized_key:
-  - "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+admin_authorized_key: "{{ lookup('file', '~/.ssh/id_ed25519.pub').strip() }}"
 dotenv_path: "" # raspi内のdotenvパス。空文字ならデフォルトで管理ユーザーのホームディレクトリに配置
 timezone: "Asia/Tokyo"
 target_uid: 1000

@@ -14,15 +14,15 @@
 
 - name: Align admin primary group GID to target
   group:
-    name: "{{ ansible_user_id }}"
+    name: "{{ ansible_user }}"
     gid: "{{ target_gid }}"
     state: present
 
 - name: Align admin user UID/GID to target
   user:
-    name: "{{ ansible_user_id }}"
+    name: "{{ ansible_user }}"
     uid: "{{ target_uid }}"
-    group: "{{ ansible_user_id }}"
+    group: "{{ ansible_user }}"
     groups: "sudo"
     append: yes
     shell: /bin/bash
@@ -34,7 +34,7 @@
 - name: Fix ownership of admin home directory
   file:
     path: "{{ admin_user_home }}"
-    owner: "{{ ansible_user_id }}"
-    group: "{{ ansible_user_id }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     recurse: yes
   when: admin_user_home is defined and (admin_user_home | length) > 0

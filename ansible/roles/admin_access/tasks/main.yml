@@ -3,14 +3,13 @@
   file:
     path: "{{ admin_user_home }}/.ssh"
     state: directory
-    owner: "{{ ansible_user_id }}"
-    group: "{{ ansible_user_id }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
     mode: "0700"
   when: admin_user_home is defined and (admin_user_home | length) > 0
 
-- name: Install admin authorized keys
+- name: Install admin authorized key
   authorized_key:
-    user: "{{ ansible_user_id }}"
-    key: "{{ item }}"
+    user: "{{ ansible_user }}"
+    key: "{{ admin_authorized_key }}"
     state: present
-  loop: "{{ admin_authorized_keys_list }}"

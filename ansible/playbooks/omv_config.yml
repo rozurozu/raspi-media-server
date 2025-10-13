@@ -22,15 +22,15 @@
     - name: Gather admin user entry
       getent:
         database: passwd
-        key: "{{ ansible_user_id }}"
+        key: "{{ ansible_user }}"
       register: admin_user_entry
 
     - name: Record admin account facts
       set_fact:
-        admin_account_name: "{{ ansible_user_id }}"
-        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][2] | int }}"
-        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][3] | int }}"
-        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][5] }}"
+        admin_account_name: "{{ ansible_user }}"
+        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
+        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][3] | int }}"
+        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][5] }}"
 
     - name: Determine docker compose dotenv path
       set_fact:

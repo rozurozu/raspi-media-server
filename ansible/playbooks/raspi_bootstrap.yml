@@ -27,9 +27,9 @@
 
     - name: Record admin account facts
       set_fact:
-        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
-        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][3] | int }}"
-        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][5] }}"
+        admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][1] | int }}"
+        admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
+        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][4] }}"
 
     - name: 公開鍵が未指定でないか確認する
       assert:
