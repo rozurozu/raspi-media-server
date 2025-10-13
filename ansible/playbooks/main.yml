@@ -1,0 +1,5 @@
+
+main.yml
+omv_config.yml
+services_config.yml
+これらのplaybookを順番に実行する
