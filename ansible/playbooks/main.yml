@@ -1,5 +1,7 @@
-
-main.yml
-omv_config.yml
-services_config.yml
-これらのplaybookを順番に実行する
+---
+# Raspberry Pi セットアップ一式を順番に実行するためのエントリーポイント
+# raspi_bootstrap.yml で OMV をインストールすると再起動が発生するが、
+# Playbook 内の reboot タスクが完了を待つため後続も自動的に継続する
+- import_playbook: raspi_bootstrap.yml
+- import_playbook: omv_config.yml
+- import_playbook: services_config.yml

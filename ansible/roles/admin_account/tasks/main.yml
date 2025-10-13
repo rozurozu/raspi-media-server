@@ -1,0 +1,40 @@
+---
+- name: Remove default pi user if exists
+  user:
+    name: pi
+    state: absent
+    remove: yes
+  ignore_errors: yes
+
+- name: Remove default pi group if exists
+  group:
+    name: pi
+    state: absent
+  ignore_errors: yes
+
+- name: Align admin primary group GID to target
+  group:
+    name: "{{ ansible_user_id }}"
+    gid: "{{ target_gid }}"
+    state: present
+
+- name: Align admin user UID/GID to target
+  user:
+    name: "{{ ansible_user_id }}"
+    uid: "{{ target_uid }}"
+    group: "{{ ansible_user_id }}"
+    groups: "sudo"
+    append: yes
+    shell: /bin/bash
+    move_home: yes
+    create_home: yes
+    state: present
+    force: yes
+
+- name: Fix ownership of admin home directory
+  file:
+    path: "{{ admin_user_home }}"
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_id }}"
+    recurse: yes
+  when: admin_user_home is defined and (admin_user_home | length) > 0

@@ -1,0 +1,21 @@
+---
+- name: Validate docker compose project path
+  assert:
+    that:
+      - docker_compose_project_src is string
+      - docker_compose_project_src | length > 0
+      - docker_compose_project_src | path_is_absolute
+    fail_msg: "docker_compose_project_src は絶対パスの文字列で指定してください"
+
+- name: Ensure docker compose project is up to date
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_compose_project_src }}"
+    files: "{{ docker_compose_project_files }}"
+    pull: "{{ docker_compose_pull | bool }}"
+    state: "{{ docker_compose_state }}"
+  register: docker_compose_result
+
+- name: Report docker compose changes
+  debug:
+    msg: "docker compose で変更が発生しました"
+  when: docker_compose_result is changed

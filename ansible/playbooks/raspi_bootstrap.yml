@@ -65,8 +65,8 @@
     - name: Ensure admin authorized key does not contain newlines
       assert:
         that:
-          - '\n' not in admin_authorized_key
-          - '\r' not in admin_authorized_key
+          - '"\n" not in admin_authorized_key'
+          - '"\r" not in admin_authorized_key'
         fail_msg: |
           公開鍵は単一行で指定してください。複数鍵や改行を含む値はサポートしていません。
 
@@ -108,279 +108,28 @@
         - (target_gid_owner.stdout | trim) not in [ ansible_user_id, 'pi' ]
 
   tasks:
-    - name: Update & upgrade apt packages
-      apt:
-        update_cache: yes
-        upgrade: full
-        cache_valid_time: 3600
+    - import_role:
+        name: system_base
 
-    - name: Set timezone
-      timezone:
-        name: "{{ timezone }}"
+    - import_role:
+        name: admin_access
 
-    - name: Set hostname
-      hostname:
-        name: "{{ set_hostname }}"
+    - import_role:
+        name: ssh_hardening
 
-    - name: Ensure sudo installed
-      apt:
-        name: sudo
-        state: present
+    - import_role:
+        name: ufw
 
-    - name: Ensure admin primary group exists
-      group:
-        name: "{{ ansible_user_id }}"
-        state: present
+    - import_role:
+        name: fail2ban
 
-    - name: Install security/base packages
-      apt:
-        name:
-          - ufw
-          - fail2ban
-          - unattended-upgrades
-          - apt-listchanges
-          - curl
-          - ca-certificates
-        state: present
-        update_cache: yes
-
-    # ---- OS update policy ----
-    - name: Configure unattended apt periodic jobs
-      copy:
-        dest: /etc/apt/apt.conf.d/20auto-upgrades
-        content: |
-          APT::Periodic::Update-Package-Lists "1";
-          APT::Periodic::Download-Upgradeable-Packages "1";
-          APT::Periodic::AutocleanInterval "7";
-          APT::Periodic::Unattended-Upgrade "1";
-        mode: '0644'
-
-    - name: Configure unattended-upgrades (security only)
-      copy:
-        dest: /etc/apt/apt.conf.d/50unattended-upgrades
-        content: |
-          Unattended-Upgrade::Origins-Pattern {
-                  "origin=${distro_id},suite=${distro_codename}-security";
-                  "origin=${distro_id},label=Debian-Security";
-          };
-          Unattended-Upgrade::Package-Blacklist {
-                  "openmediavault";
-                  "openmediavault-*";
-                  "openmediavault-plugins-*";
-                  "linux-image*";
-                  "linux-headers*";
-                  "linux-raspi*";
-                  "raspberrypi-kernel*";
-                  "raspberrypi-bootloader*";
-          };
-          Unattended-Upgrade::Automatic-Reboot "false";
-        mode: '0644'
-      notify: Restart unattended-upgrades
-
-    - name: Ensure apt-daily.timer enabled
-      systemd:
-        name: apt-daily.timer
-        state: started
-        enabled: yes
-        masked: no
-
-    - name: Ensure apt-daily-upgrade.timer enabled
-      systemd:
-        name: apt-daily-upgrade.timer
-        state: started
-        enabled: yes
-        masked: no
-
-    # ---- Admin SSH key provisioning ----
-    - name: Ensure admin .ssh directory exists
-      file:
-        path: "{{ admin_user_home }}/.ssh"
-        state: directory
-        owner: "{{ ansible_user_id }}"
-        group: "{{ ansible_user_id }}"
-        mode: "0700"
-      when: admin_user_home is defined and (admin_user_home | length) > 0
-
-    - name: Install admin authorized key
-      authorized_key:
-        user: "{{ ansible_user_id }}"
-        key: "{{ admin_authorized_key }}"
-        state: present
-
-    # ---- SSH hardening ----
-    - name: Disable root login over SSH
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?\s*PermitRootLogin'
-        line: 'PermitRootLogin no'
-        create: no
-        backrefs: no
-      notify: Restart SSH
-
-    - name: Enforce pubkey only auth (disable password auth)
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?\s*PasswordAuthentication'
-        line: 'PasswordAuthentication no'
-      notify: Restart SSH
-
-    - name: Ensure PubkeyAuthentication yes
-      lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?\s*PubkeyAuthentication'
-        line: 'PubkeyAuthentication yes'
-      notify: Restart SSH
-
-    # ---- UFW ----
-    - name: Set UFW default deny incoming
-      community.general.ufw:
-        direction: incoming
-        policy: deny
-
-    - name: Set UFW default allow outgoing
-      community.general.ufw:
-        direction: outgoing
-        policy: allow
-
-    - name: UFW allow needed ports
-      community.general.ufw:
-        rule: allow
-        port: "{{ item }}"
-      loop: "{{ ufw_allow_ports }}"
-
-    - name: Ensure UFW enabled
-      community.general.ufw:
-        state: enabled
-
-    # ---- fail2ban (sshdだけ有効化の最小設定) ----
-    - name: Configure fail2ban for sshd (minimal)
-      copy:
-        dest: /etc/fail2ban/jail.d/sshd.local
-        content: |
-          [sshd]
-          enabled = true
-          bantime = 1h
-          findtime = 10m
-          maxretry = 5
-      notify: Restart fail2ban
-
-    # ---- OMV install（未導入時のみ） ----
-    - name: Install OpenMediaVault (optional)
-      when: install_omv | bool
-      block:
-        - name: Check if OMV already provisioned
-          stat:
-            path: /etc/openmediavault/config.xml
-          register: omv_config
-
-        - name: Download OMV installer script
-          get_url:
-            url: https://github.com/OpenMediaVault-Plugin-Developers/installScript/raw/master/install
-            dest: /root/omv_install.sh
-            mode: '0755'
-          when: not omv_config.stat.exists
-
-        - name: Run OMV installer without automatic reboot
-          shell: OMV_INSTALLER_SKIP_REBOOT=yes /root/omv_install.sh
-          args:
-            creates: /etc/openmediavault/config.xml
-          register: omv_install
-          when: not omv_config.stat.exists
-
-        - name: Ensure omv-extras package installed
-          apt:
-            name: openmediavault-omvextrasorg
-            state: present
-            update_cache: yes
-          register: omv_extras_install
-          when: omv_config.stat.exists or (omv_install is defined and not (omv_install is skipped))
-
-        - name: Reboot if OMV or omv-extras just installed
-          reboot:
-            reboot_timeout: 600
-            test_command: /bin/true
-          when:
-            - (omv_install is defined and omv_install is changed) or
-              (omv_extras_install is defined and omv_extras_install is changed)
+    - import_role:
+        name: omv_install
 
     - meta: flush_handlers
 
-    # ---- Remove default 'pi' if存在 ----
-    - name: Remove default pi user if exists
-      user:
-        name: pi
-        state: absent
-        remove: yes
-      ignore_errors: yes
+    - import_role:
+        name: admin_account
 
-    - name: Remove default pi group if exists
-      group:
-        name: pi
-        state: absent
-      ignore_errors: yes
-
-    - name: Align admin primary group GID to target
-      group:
-        name: "{{ ansible_user_id }}"
-        gid: "{{ target_gid }}"
-        state: present
-
-    - name: Align admin user UID/GID to target
-      user:
-        name: "{{ ansible_user_id }}"
-        uid: "{{ target_uid }}"
-        group: "{{ ansible_user_id }}"
-        groups: "sudo"
-        append: yes
-        shell: /bin/bash
-        move_home: yes
-        create_home: yes
-        state: present
-        force: yes
-
-    - name: Fix ownership of admin home directory
-      file:
-        path: "{{ admin_user_home }}"
-        owner: "{{ ansible_user_id }}"
-        group: "{{ ansible_user_id }}"
-        recurse: yes
-      when: admin_user_home is defined and (admin_user_home | length) > 0
-
-    - name: Ensure directory for dotenv exists
-      file:
-        path: "{{ dotenv_path | dirname }}"
-        state: directory
-        owner: "{{ ansible_user_id }}"
-        group: "{{ ansible_user_id }}"
-        mode: "0755"
-      when: (dotenv_path | dirname) not in ['', '.']
-      tags: ['dotenv']
-
-    - name: Render docker-compose dotenv file
-      template:
-        src: dotenv.j2
-        dest: "{{ dotenv_path }}"
-        owner: "{{ ansible_user_id }}"
-        group: "{{ ansible_user_id }}"
-        mode: "0600"
-      vars:
-        dotenv: "{{ dotenv | default({}) }}"
-      tags: ['dotenv']
-
-  handlers:
-    - name: Restart SSH
-      service:
-        name: ssh
-        state: restarted
-
-    - name: Restart fail2ban
-      service:
-        name: fail2ban
-        state: restarted
-        enabled: yes
-
-    - name: Restart unattended-upgrades
-      service:
-        name: unattended-upgrades
-        state: restarted
-        enabled: yes
+    - import_role:
+        name: dotenv

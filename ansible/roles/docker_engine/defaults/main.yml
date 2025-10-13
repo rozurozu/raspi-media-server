@@ -1,0 +1,6 @@
+---
+docker_engine_packages:
+  - docker.io
+  - docker-compose-plugin
+  - python3-docker
+docker_engine_service: docker

@@ -1,0 +1,82 @@
+---
+- name: Update & upgrade apt packages
+  apt:
+    update_cache: yes
+    upgrade: full
+    cache_valid_time: 3600
+
+- name: Set timezone
+  timezone:
+    name: "{{ timezone }}"
+
+- name: Set hostname
+  hostname:
+    name: "{{ set_hostname }}"
+
+- name: Ensure sudo installed
+  apt:
+    name: sudo
+    state: present
+
+- name: Ensure admin primary group exists
+  group:
+    name: "{{ ansible_user_id }}"
+    state: present
+
+- name: Install security/base packages
+  apt:
+    name:
+      - ufw
+      - fail2ban
+      - unattended-upgrades
+      - apt-listchanges
+      - curl
+      - ca-certificates
+    state: present
+    update_cache: yes
+
+- name: Configure unattended apt periodic jobs
+  copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Download-Upgradeable-Packages "1";
+      APT::Periodic::AutocleanInterval "7";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: '0644'
+
+- name: Configure unattended-upgrades (security only)
+  copy:
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Origins-Pattern {
+              "origin=${distro_id},suite=${distro_codename}-security";
+              "origin=${distro_id},label=Debian-Security";
+      };
+      Unattended-Upgrade::Package-Blacklist {
+              "openmediavault";
+              "openmediavault-*";
+              "openmediavault-plugins-*";
+              "linux-image*";
+              "linux-headers*";
+              "linux-raspi*";
+              "raspberrypi-kernel*";
+              "raspberrypi-bootloader*";
+      };
+      Unattended-Upgrade::Automatic-Reboot "false";
+    mode: '0644'
+  notify: Restart unattended-upgrades
+
+- name: Ensure apt-daily.timer enabled
+  systemd:
+    name: apt-daily.timer
+    state: started
+    enabled: yes
+    masked: no
+
+- name: Ensure apt-daily-upgrade.timer enabled
+  systemd:
+    name: apt-daily-upgrade.timer
+    state: started
+    enabled: yes
+    masked: no

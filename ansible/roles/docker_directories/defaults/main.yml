@@ -1,0 +1,5 @@
+---
+docker_directories: []
+docker_directories_owner: root
+docker_directories_group: "{{ docker_directories_owner }}"
+docker_directories_mode: "0755"

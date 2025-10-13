@@ -79,52 +79,28 @@
       when: not compose_file.stat.exists
 
   tasks:
-    - name: Install Docker engine and helpers
-      apt:
-        name:
-          - docker.io
-          - docker-compose-plugin
-          - python3-docker
-        state: present
-        update_cache: yes
+    - import_role:
+        name: docker_engine
 
-    - name: Ensure docker service enabled
-      systemd:
-        name: docker
-        state: started
-        enabled: yes
+    - import_role:
+        name: docker_directories
+      vars:
+        docker_directories_owner: "{{ admin_account_name }}"
+        docker_directories_group: "{{ admin_account_name }}"
+        docker_directories:
+          - "{{ dotenv.CONFIG_ROOT }}"
+          - "{{ dotenv.CONFIG_ROOT }}/jellyfin"
+          - "{{ dotenv.CONFIG_ROOT }}/jellyfin/config"
+          - "{{ dotenv.CONFIG_ROOT }}/jellyfin/cache"
+          - "{{ dotenv.CONFIG_ROOT }}/komga"
+          - "{{ dotenv.CONFIG_ROOT }}/komga/config"
+          - "{{ dotenv.CONFIG_ROOT }}/tailscale"
+          - "{{ dotenv.CONFIG_ROOT }}/tailscale/state"
+          - "{{ dotenv.CACHE_ROOT }}"
+          - "{{ dotenv.CACHE_ROOT }}/jellyfin"
+          - "{{ dotenv.CACHE_ROOT }}/jellyfin/cache"
 
-    - name: Ensure docker configuration directories exist
-      file:
-        path: "{{ item }}"
-        state: directory
-        owner: "{{ admin_account_name }}"
-        group: "{{ admin_account_name }}"
-        mode: "0755"
-      loop:
-        - "{{ dotenv.CONFIG_ROOT }}"
-        - "{{ dotenv.CONFIG_ROOT }}/jellyfin"
-        - "{{ dotenv.CONFIG_ROOT }}/jellyfin/config"
-        - "{{ dotenv.CONFIG_ROOT }}/jellyfin/cache"
-        - "{{ dotenv.CONFIG_ROOT }}/komga"
-        - "{{ dotenv.CONFIG_ROOT }}/komga/config"
-        - "{{ dotenv.CONFIG_ROOT }}/tailscale"
-        - "{{ dotenv.CONFIG_ROOT }}/tailscale/state"
-        - "{{ dotenv.CACHE_ROOT }}"
-        - "{{ dotenv.CACHE_ROOT }}/jellyfin"
-        - "{{ dotenv.CACHE_ROOT }}/jellyfin/cache"
-      when: item is not none and (item | length) > 0
-
-    - name: Ensure docker compose project is up to date
-      community.docker.docker_compose_v2:
-        project_src: "{{ compose_project_src }}"
-        files:
-          - docker-compose.yml
-        pull: true
-        state: present
-      register: compose_result
-
-    - name: Report docker compose changes
-      debug:
-        msg: "docker compose で変更が発生しました"
-      when: compose_result is changed
+    - import_role:
+        name: docker_compose_project
+      vars:
+        docker_compose_project_src: "{{ compose_project_src }}"

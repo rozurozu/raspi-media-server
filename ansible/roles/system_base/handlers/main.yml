@@ -1,0 +1,6 @@
+---
+- name: Restart unattended-upgrades
+  service:
+    name: unattended-upgrades
+    state: restarted
+    enabled: yes

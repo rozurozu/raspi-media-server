@@ -1,0 +1,12 @@
+---
+- name: Ensure docker related directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ docker_directories_owner }}"
+    group: "{{ docker_directories_group }}"
+    mode: "{{ docker_directories_mode }}"
+  loop: "{{ docker_directories }}"
+  when:
+    - item is defined
+    - item | string | length > 0

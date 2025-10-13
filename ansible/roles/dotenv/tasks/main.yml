@@ -1,0 +1,21 @@
+---
+- name: Ensure directory for dotenv exists
+  file:
+    path: "{{ dotenv_path | dirname }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_id }}"
+    mode: "0755"
+  when: (dotenv_path | dirname) not in ['', '.']
+  tags: ['dotenv']
+
+- name: Render docker-compose dotenv file
+  template:
+    src: dotenv.j2
+    dest: "{{ dotenv_path }}"
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_id }}"
+    mode: "0600"
+  vars:
+    dotenv: "{{ dotenv | default({}) }}"
+  tags: ['dotenv']

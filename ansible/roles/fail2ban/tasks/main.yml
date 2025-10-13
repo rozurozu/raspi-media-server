@@ -1,0 +1,11 @@
+---
+- name: Configure fail2ban for sshd (minimal)
+  copy:
+    dest: /etc/fail2ban/jail.d/sshd.local
+    content: |
+      [sshd]
+      enabled = true
+      bantime = 1h
+      findtime = 10m
+      maxretry = 5
+  notify: Restart fail2ban

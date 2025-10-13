@@ -1,0 +1,12 @@
+---
+- name: Install Docker engine and helpers
+  apt:
+    name: "{{ docker_engine_packages }}"
+    state: present
+    update_cache: yes
+
+- name: Ensure docker service enabled
+  systemd:
+    name: "{{ docker_engine_service }}"
+    state: started
+    enabled: yes

@@ -1,0 +1,23 @@
+---
+- name: Disable root login over SSH
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?\s*PermitRootLogin'
+    line: 'PermitRootLogin no'
+    create: no
+    backrefs: no
+  notify: Restart SSH
+
+- name: Enforce pubkey only auth (disable password auth)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?\s*PasswordAuthentication'
+    line: 'PasswordAuthentication no'
+  notify: Restart SSH
+
+- name: Ensure PubkeyAuthentication yes
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: '^#?\s*PubkeyAuthentication'
+    line: 'PubkeyAuthentication yes'
+  notify: Restart SSH

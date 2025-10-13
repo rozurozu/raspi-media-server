@@ -1,0 +1,6 @@
+---
+docker_compose_project_src: ""
+docker_compose_project_files:
+  - docker-compose.yml
+docker_compose_pull: true
+docker_compose_state: present
