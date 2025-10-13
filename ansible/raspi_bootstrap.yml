@@ -42,6 +42,10 @@
         admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][3] | int }}"
         admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user_id][5] }}"
 
+    - name: Load admin authorized keys from environment
+      set_fact:
+        admin_authorized_keys_env: "{{ lookup('env', 'RASPI_ADMIN_AUTHORIZED_KEYS') | default('', true) }}"
+
     - name: Resolve admin authorized keys source
       set_fact:
         admin_authorized_keys_input: "{{ admin_authorized_keys | default(admin_authorized_keys_env, true) }}"

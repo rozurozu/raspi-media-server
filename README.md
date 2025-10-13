@@ -59,6 +59,7 @@ macOS Finder:
    - Playbook 側で installScript の自動リブートを抑止し、Ansible の `reboot` モジュールで再起動と再接続を待つ。再起動後は自動で Play が再開するが、手元の SSH セッションが切れた場合に備えて別途ログイン手段を確保しておくこと。
    - OMV 導入直後でも WebUI 初期設定（管理者パスワード変更、ネットワーク設定、共有フォルダ作成など）は手動で行う必要がある。
    - USB3.0 ストレージを接続し、`ストレージ > ファイルシステム` から EXT4 で初期化のうえマウント。
+   - マウント後に `ls -al /srv` や `blkid` で実ディスクの UUID (`/srv/dev-disk-by-uuid-XXXX`) を確認し、後段の `.env` と `ansible/group_vars/all.yml` の `MEDIA_ROOT` 系変数へ反映できるよう控えておく。UUID が未確定のままだと Playbook が失敗する。
    - `アクセス権管理 > 共有フォルダ` で `media` (例: `/srv/dev-disk-by-uuid-XXXX/media`) と `utatane` (例: `/srv/dev-disk-by-uuid-XXXX/utatane`) を作成し、手動で作成した管理ユーザーに必要な権限（読取/必要なら書込）を付与する。
 
 2. **リポジトリ配置**
