@@ -1,0 +1,5 @@
+---
+# OMV/omv-extras インストール直後に再起動して再接続を待つかの制御
+# raspi_bootstrap.yml では IP 変化で再接続失敗を避けるため false に設定
+omv_install_reboot: true
+

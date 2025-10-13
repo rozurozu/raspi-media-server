@@ -1,0 +1,47 @@
+---
+- name: Install OpenMediaVault (detached) when requested
+  when: install_omv | bool
+  block:
+    - name: Check if OMV already provisioned
+      stat:
+        path: /etc/openmediavault/config.xml
+      register: omv_config
+
+    - name: Download OMV installer script
+      get_url:
+        url: https://github.com/OpenMediaVault-Plugin-Developers/installScript/raw/master/install
+        dest: /root/omv_install.sh
+        mode: '0755'
+      when: not omv_config.stat.exists
+
+    - name: Ensure systemd-run is available
+      command: which systemd-run
+      register: systemd_run_check
+      changed_when: false
+      failed_when: systemd_run_check.rc != 0
+      when: not omv_config.stat.exists
+
+    - name: Schedule OMV installer via systemd (detached, delayed)
+      command: >-
+        systemd-run
+        --unit={{ omv_install_v2_unit_name }}
+        --description=OpenMediaVault\ installer\ \(detached\)
+        --collect
+        --property=StandardOutput=journal
+        --property=StandardError=journal
+        --on-active={{ omv_install_v2_delay_seconds }}s
+        /bin/bash -lc '/root/omv_install.sh'
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      register: omv_install_schedule
+      when: not omv_config.stat.exists
+
+    - name: Show schedule result
+      debug:
+        var: omv_install_schedule
+      when: omv_install_schedule is defined
+
+    - name: OMV already present (no-op)
+      debug:
+        msg: "OpenMediaVault is already installed. Skipping installer."
+      when: omv_config.stat.exists

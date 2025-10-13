@@ -1,12 +1,10 @@
 ---
-- name: Raspberry Pi 初期セットアップ
+- name: Raspberry Pi 事後設定 (OMV 導入後)
   hosts: raspi
   gather_facts: yes
   become: yes
-  # ✅ 前提: Raspberry Pi OS セットアップ時に作成した管理ユーザーで接続して実行すること
 
   pre_tasks:
-
     - name: 管理ユーザーが問題ないか確認する
       assert:
         that:
@@ -15,36 +13,27 @@
         fail_msg: |
           pi ユーザーのままではこの Playbook を実行できません。Raspberry Pi OS セットアップ時に作成した管理ユーザーで SSH 接続し直してください。
 
-    - name: Pythonが存在するか確認する
-      raw: test -e /usr/bin/python3 || (apt-get update -y && apt-get install -y python3)
-      changed_when: false
+    - name: OMV が導入済みか確認する
+      stat:
+        path: /etc/openmediavault/config.xml
+      register: omv_config
 
-    - name: Gather admin user entry
+    - name: OMV 未導入時は中断する
+      fail:
+        msg: "OMV が見つかりません。先に raspi_bootstrap.yml を完了してください。"
+      when: not omv_config.stat.exists
+
+    - name: 管理ユーザー情報の取得
       getent:
         database: passwd
         key: "{{ ansible_user }}"
       register: admin_user_entry
 
-    - name: Record admin account facts
+    - name: 管理ユーザー情報の事実設定
       set_fact:
         admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][1] | int }}"
         admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
         admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][4] }}"
-
-    - name: 公開鍵が未指定でないか確認する
-      assert:
-        that:
-          - admin_authorized_key | length > 0
-        fail_msg: |
-          管理ユーザーの公開鍵が未指定です。group_vars で admin_authorized_key を設定してください。
-
-    - name: 公開鍵の形式が問題ないか確認する
-      assert:
-        that:
-          - '"\n" not in admin_authorized_key'
-          - '"\r" not in admin_authorized_key'
-        fail_msg: |
-          公開鍵は単一行で指定してください。改行を含む値はサポートしていません。
 
     - name: dotenvのパスを決定する
       set_fact:
@@ -59,7 +48,6 @@
         fail_msg: "dotenv_path は絶対パスで指定してください"
       tags: ['dotenv']
 
-    # ターゲットのUID/GIDが使用できるか確認する
     - name: Check UID/GID conflicts
       vars:
         checks:
@@ -70,27 +58,12 @@
       loop_control:
         loop_var: check
 
-
   tasks:
     - import_role:
-        name: system_base
+        name: admin_account
 
     - import_role:
-        name: admin_access
+        name: dotenv
 
     - import_role:
-        name: ssh_hardening
-
-    - import_role:
-        name: ufw
-
-    - import_role:
-        name: fail2ban
-
-    - import_role:
-        name: omv_install_v2
-        # name: omv_install v2はSSHが切れる前提のジョブ。よう修正
-
-    - meta: flush_handlers
-    # 以降の後続処理は ansible/playbooks/raspi_post_omv.yml に分離
-    - meta: end_play
+        name: omv_extras

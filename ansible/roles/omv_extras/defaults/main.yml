@@ -1,0 +1,9 @@
+---
+# 基本: OMV-Extras 本体
+omv_extras_packages:
+  - openmediavault-omvextrasorg
+
+# 任意: 追加で入れたいプラグイン群（例）
+# 利用側で上書きしてください。デフォルトは空。
+omv_extras_additional_packages: []
+

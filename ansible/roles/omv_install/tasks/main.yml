@@ -21,18 +21,10 @@
       register: omv_install
       when: not omv_config.stat.exists
 
-    - name: Ensure omv-extras package installed
-      apt:
-        name: openmediavault-omvextrasorg
-        state: present
-        update_cache: yes
-      register: omv_extras_install
-      when: omv_config.stat.exists or (omv_install is defined and not (omv_install is skipped))
-
-    - name: Reboot if OMV or omv-extras just installed
+    - name: Reboot if OMV just installed
       reboot:
         reboot_timeout: 600
         test_command: /bin/true
       when:
-        - (omv_install is defined and omv_install is changed) or
-          (omv_extras_install is defined and omv_extras_install is changed)
+        - omv_install_reboot | bool
+        - (omv_install is defined and omv_install is changed)

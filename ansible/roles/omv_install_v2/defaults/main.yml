@@ -1,0 +1,7 @@
+---
+# systemd-run で遅延起動する秒数（SSH断対策のマージン）
+omv_install_v2_delay_seconds: 30
+
+# systemd unit 名称
+omv_install_v2_unit_name: omv-installer
+

@@ -1,0 +1,18 @@
+---
+- name: Check OpenMediaVault presence
+  stat:
+    path: /etc/openmediavault/config.xml
+  register: omv_config
+
+- name: Abort when OMV is not installed yet
+  fail:
+    msg: "OMV が見つかりません。先に raspi_bootstrap.yml を完了してください。"
+  when: not omv_config.stat.exists
+
+- name: Install OMV-Extras and plugins
+  vars:
+    pkgs: "{{ omv_extras_packages + (omv_extras_additional_packages | default([])) }}"
+  apt:
+    name: "{{ pkgs }}"
+    state: present
+    update_cache: yes

@@ -50,7 +50,7 @@
 
     - name: Abort when dotenv file is missing
       fail:
-        msg: "{{ dotenv_path }} が見つかりません。raspi_bootstrap.yml で dotenv を生成してください。"
+        msg: "{{ dotenv_path }} が見つかりません。raspi_post_omv.yml で dotenv を生成してください。"
       when: not dotenv_file.stat.exists
 
     - name: Load dotenv values
