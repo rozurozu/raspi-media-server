@@ -40,6 +40,7 @@ dotenv:
   VIDEOS_ROOT: "{{ storage_mount_root }}/media/video"
   PRIVATE_VIDEOS_ROOT: "{{ storage_mount_root }}/utatane/video"
   PICTURE_ROOT: "{{ storage_mount_root }}/media/picture"
+  PRIVATE_PICTURE_ROOT: "{{ storage_mount_root }}/utatane/picture"
   MANGA_PUBLIC_ROOT: "{{ storage_mount_root }}/media/manga"
   MANGA_PRIVATE_ROOT: "{{ storage_mount_root }}/utatane/manga"
   JELLYFIN_PUBLISHED_URL: ""
@@ -47,3 +48,12 @@ dotenv:
   TAILSCALE_AUTHKEY: ""
   TAILSCALE_HOSTNAME: raspi-media
   TAILSCALE_EXTRA_ARGS: ""
+
+# OMV (SMB) 設定の既定値
+omv_smb:
+  enable: true
+  workgroup: WORKGROUP
+  min_protocol: SMB2
+  max_protocol: SMB3
+  ntlm: false
+  recycle: true

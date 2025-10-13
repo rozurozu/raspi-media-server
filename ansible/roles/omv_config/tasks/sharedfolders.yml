@@ -1,0 +1,122 @@
+---
+# 共有フォルダ (OMV の SharedFolder) を作成する。
+
+- name: Derive OMV mount root and desired roots
+  set_fact:
+    mount_root: "{{ (dotenv.MEDIA_ROOT | default('') ) | dirname }}"
+    media_root: "{{ dotenv.MEDIA_ROOT | default('') }}"
+    utatane_root_from_video: "{{ dotenv.PRIVATE_VIDEOS_ROOT | default('') | dirname if (dotenv.PRIVATE_VIDEOS_ROOT | default('') | length > 0) else '' }}"
+    utatane_root_from_picture: "{{ dotenv.PRIVATE_PICTURE_ROOT | default('') | dirname if (dotenv.PRIVATE_PICTURE_ROOT | default('') | length > 0) else '' }}"
+    utatane_root_from_manga: "{{ dotenv.MANGA_PRIVATE_ROOT | default('') | dirname if (dotenv.MANGA_PRIVATE_ROOT | default('') | length > 0) else '' }}"
+
+- name: Select utatane root
+  set_fact:
+    utatane_root: >-
+      {{
+        utatane_root_from_video
+        if utatane_root_from_video | length > 0
+        else (utatane_root_from_picture if utatane_root_from_picture | length > 0 else utatane_root_from_manga)
+      }}
+
+- name: Validate mount_root
+  assert:
+    that:
+      - mount_root | length > 0
+      - mount_root.startswith('/srv/dev-disk-by-uuid-')
+    fail_msg: "MEDIA_ROOT から導出した mount_root が /srv/dev-disk-by-uuid- 配下ではありません。"
+
+- name: Fetch mountpoint entries
+  command: omv-confdbadm read conf.system.filesystem.mountpoint
+  register: mp_raw
+  changed_when: false
+  failed_when: false
+
+- name: Parse mountpoint entries
+  set_fact:
+    mp_parsed: "{{ (mp_raw.stdout | default('[]')) | from_json | default([], true) }}"
+
+- name: Normalize mountpoint list
+  set_fact:
+    mp_items: "{{ (mp_parsed.config if (mp_parsed is mapping and 'config' in mp_parsed) else mp_parsed) | list }}"
+
+- name: Pick mount entry by dir
+  set_fact:
+    mount_entry: "{{ (mp_items | selectattr('dir','equalto', mount_root) | list | first | default({})) }}"
+
+- name: Abort when mount entry not found
+  fail:
+    msg: "OMV のマウントエントリが見つかりませんでした。OMV GUI で対象ファイルシステムをマウントしてください: {{ mount_root }}"
+  when: mount_entry.get('uuid') | default('') | length == 0
+
+- name: Compute relative paths
+  set_fact:
+    media_relpath: "{{ media_root | replace(mount_root + '/', '') | replace(mount_root, '') }}"
+    utatane_relpath: "{{ utatane_root | replace(mount_root + '/', '') | replace(mount_root, '') }}"
+
+- name: Read existing shared folders
+  command: omv-confdbadm read conf.system.sharedfolder
+  register: sf_raw
+  changed_when: false
+  failed_when: false
+
+- name: Parse shared folders
+  set_fact:
+    sf_parsed: "{{ (sf_raw.stdout | default('[]')) | from_json | default([], true) }}"
+
+- name: Normalize shared folder list
+  set_fact:
+    sf_items: "{{ (sf_parsed.config if (sf_parsed is mapping and 'config' in sf_parsed) else sf_parsed) | list }}"
+
+- name: Lookup existing sharedfolder uuids
+  set_fact:
+    media_sf: "{{ (sf_items | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', media_relpath) | list | first | default({})) }}"
+    utatane_sf: "{{ (sf_items | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', utatane_relpath) | list | first | default({})) }}"
+
+- name: Create sharedfolder 'media' when missing
+  shell: >-
+    omv-rpc 'SharedFolder' 'create' '{{ {
+      "name": "media",
+      "reldirpath": media_relpath,
+      "mntentref": mount_entry.uuid,
+      "comment": "raspi-media-server",
+      "privileges": []
+    } | to_json }}'
+  register: sf_media_create
+  changed_when: true
+  when: media_sf.get('uuid') | default('') | length == 0
+
+- name: Create sharedfolder 'utatane' when missing
+  shell: >-
+    omv-rpc 'SharedFolder' 'create' '{{ {
+      "name": "utatane",
+      "reldirpath": utatane_relpath,
+      "mntentref": mount_entry.uuid,
+      "comment": "raspi-media-server",
+      "privileges": []
+    } | to_json }}'
+  register: sf_utatane_create
+  changed_when: true
+  when:
+    - utatane_root | length > 0
+    - utatane_sf.get('uuid') | default('') | length == 0
+
+- name: Refresh shared folder list after creation
+  command: omv-confdbadm read conf.system.sharedfolder
+  register: sf_raw_after
+  changed_when: false
+  failed_when: false
+
+- name: Parse/normalize shared folders (post)
+  set_fact:
+    sf_after: "{{ (sf_raw_after.stdout | default('[]')) | from_json | default([], true) }}"
+    sf_items_after: "{{ ( (sf_after.config if (sf_after is mapping and 'config' in sf_after) else sf_after) | list ) }}"
+
+- name: Record sharedfolder UUIDs
+  set_fact:
+    media_sharedfolder_uuid: "{{ (sf_items_after | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', media_relpath) | map(attribute='uuid') | list | first | default('')) }}"
+    utatane_sharedfolder_uuid: "{{ (sf_items_after | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', utatane_relpath) | map(attribute='uuid') | list | first | default('')) }}"
+
+- name: Fail if media sharedfolder uuid not resolved
+  fail:
+    msg: "sharedfolder 'media' の UUID 解決に失敗しました。"
+  when: media_sharedfolder_uuid | length == 0

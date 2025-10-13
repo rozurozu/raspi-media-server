@@ -13,8 +13,8 @@ CACHE_ROOT={{ dotenv.CACHE_ROOT | default('/opt/docker/cache') }}
 MEDIA_ROOT={{ dotenv.MEDIA_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media') }}
 VIDEOS_ROOT={{ dotenv.VIDEOS_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/video') }}
 PRIVATE_VIDEOS_ROOT={{ dotenv.PRIVATE_VIDEOS_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/video') }}
-# 画像等を扱う場合は必要に応じて利用（現状未使用）
-# PICTURE_ROOT={{ dotenv.PICTURE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/picture') }}
+PICTURE_ROOT={{ dotenv.PICTURE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/picture') }}
+PRIVATE_PICTURE_ROOT={{ dotenv.PRIVATE_PICTURE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/picture') }}
 # Komga: 現状は公開(共有)ライブラリのみ使用します。非公開を使う場合は compose のコメント行を解除
 MANGA_PUBLIC_ROOT={{ dotenv.MANGA_PUBLIC_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/manga') }}
 MANGA_PRIVATE_ROOT={{ dotenv.MANGA_PRIVATE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/manga') }}

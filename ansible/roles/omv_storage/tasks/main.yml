@@ -1,0 +1,60 @@
+---
+# OMV 管理下のマウント配下に、README 記載のディレクトリ案を作成する。
+# 前提: プレイブック側で dotenv を読み込み、mount_root の存在を検証済み。
+
+- name: Derive storage layout paths
+  set_fact:
+    media_root: "{{ dotenv.MEDIA_ROOT | default('') }}"
+    videos_root: "{{ dotenv.VIDEOS_ROOT | default('') }}"
+    picture_root: "{{ dotenv.PICTURE_ROOT | default('') }}"
+    manga_public_root: "{{ dotenv.MANGA_PUBLIC_ROOT | default('') }}"
+    private_videos_root: "{{ dotenv.PRIVATE_VIDEOS_ROOT | default('') }}"
+    manga_private_root: "{{ dotenv.MANGA_PRIVATE_ROOT | default('') }}"
+
+- name: Compute utatane root candidates
+  set_fact:
+    utatane_root_from_private_video: "{{ private_videos_root | dirname if (private_videos_root | length > 0) else '' }}"
+    utatane_root_from_private_manga: "{{ manga_private_root | dirname if (manga_private_root | length > 0) else '' }}"
+
+- name: Select utatane root
+  set_fact:
+    utatane_root: >-
+      {{
+        utatane_root_from_private_video
+        if utatane_root_from_private_video | length > 0
+        else utatane_root_from_private_manga
+      }}
+
+- name: Compose private picture root (derived)
+  set_fact:
+    private_picture_root: >-
+      {{
+        (dotenv.PRIVATE_PICTURE_ROOT
+          if (dotenv is defined and 'PRIVATE_PICTURE_ROOT' in dotenv)
+          else ((utatane_root + '/picture') if (utatane_root | length > 0) else '') )
+      }}
+
+- name: Build directory list from dotenv and README layout
+  set_fact:
+    omv_storage_dirs: >-
+      {{
+        [media_root, videos_root, picture_root, manga_public_root,
+         utatane_root, private_videos_root, private_picture_root, manga_private_root]
+        | select('defined')
+        | select('string')
+        | reject('equalto', '')
+        | list
+      }}
+
+- name: Ensure storage directories exist (under OMV mount)
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ omv_storage_owner | default(ansible_user) }}"
+    group: "{{ omv_storage_group | default(ansible_user) }}"
+    mode: "{{ omv_storage_dir_mode | default('0755') }}"
+  loop: "{{ omv_storage_dirs }}"
+  when:
+    - item is defined
+    - item | string | length > 0
+    - item.startswith(mount_root + '/') or (item == mount_root) or item.startswith(media_root + '/') or (item == media_root)

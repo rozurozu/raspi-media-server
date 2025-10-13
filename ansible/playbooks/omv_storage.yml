@@ -1,0 +1,98 @@
+---
+- name: OpenMediaVault ストレージ初期化
+  hosts: raspi
+  gather_facts: false
+  become: yes
+
+  pre_tasks:
+    - name: Check UID in use by another account
+      include_tasks: tasks/check_uid_gid.yml
+      vars:
+        check:
+          type: uid
+          db: passwd
+          id: "{{ target_uid }}"
+
+    - name: Check GID in use by another group
+      include_tasks: tasks/check_uid_gid.yml
+      vars:
+        check:
+          type: gid
+          db: group
+          id: "{{ target_gid }}"
+
+    - name: Check OpenMediaVault presence
+      stat:
+        path: /etc/openmediavault/config.xml
+      register: omv_config
+
+    - name: Abort when OMV is not installed yet
+      fail:
+        msg: "OMV が見つかりません。先に raspi_bootstrap.yml を完了してください。"
+      when: not omv_config.stat.exists
+
+    - name: Gather admin user entry
+      getent:
+        database: passwd
+        key: "{{ ansible_user }}"
+      register: admin_user_entry
+
+    - name: Record admin account facts
+      set_fact:
+        admin_account_name: "{{ ansible_user }}"
+        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][5] }}"
+
+    - name: Determine docker compose dotenv path
+      set_fact:
+        dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
+
+    - name: Validate dotenv path
+      assert:
+        that:
+          - dotenv_path is defined
+          - dotenv_path | path_is_absolute
+        fail_msg: "dotenv_path は絶対パスで指定してください"
+
+    - name: Check dotenv template output exists
+      stat:
+        path: "{{ dotenv_path }}"
+      register: dotenv_file
+
+    - name: Abort when dotenv file is missing
+      fail:
+        msg: "{{ dotenv_path }} が見つかりません。raspi_post_omv.yml で dotenv を生成してください。"
+      when: not dotenv_file.stat.exists
+
+    - name: Load dotenv values
+      set_fact:
+        dotenv: "{{ lookup('community.general.read_dotenv', dotenv_path) }}"
+
+    - name: Derive OMV mount root from MEDIA_ROOT
+      set_fact:
+        mount_root: "{{ (dotenv.MEDIA_ROOT | default('') ) | dirname }}"
+
+    - name: Assert mount_root is OMV-managed path
+      assert:
+        that:
+          - mount_root is string
+          - mount_root | length > 0
+          - mount_root.startswith('/srv/dev-disk-by-uuid-')
+        fail_msg: "MEDIA_ROOT から導出した mount_root が OMV 標準の /srv/dev-disk-by-uuid- 配下ではありません。ansible/group_vars/all.yml の dotenv 値を修正してください。"
+
+    - name: Check OMV mount root exists
+      stat:
+        path: "{{ mount_root }}"
+      register: mount_root_stat
+
+    - name: Abort when OMV mount is not present
+      fail:
+        msg: "{{ mount_root }} が存在しません。OMV で対象ファイルシステムをマウントしてから再実行してください。"
+      when: not mount_root_stat.stat.exists
+
+  tasks:
+    - import_role:
+        name: omv_storage
+      vars:
+        omv_storage_owner: "{{ admin_account_name }}"
+        omv_storage_group: "{{ admin_account_name }}"
+        omv_storage_dir_mode: "0755"
