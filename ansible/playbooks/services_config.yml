@@ -1,1 +1,12 @@
-jellyfinとkomgaの設定をする
+---
+- name: Jellyfin/Komga 初期設定の適用
+  hosts: raspi
+  gather_facts: false
+  become: yes
+  collections:
+    - community.general
+
+  tasks:
+    - name: Apply services_config role
+      import_role:
+        name: services_config

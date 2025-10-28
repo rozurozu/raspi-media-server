@@ -1,12 +1,29 @@
 ---
-- name: Install Docker engine and helpers
+- name: Check if Docker is installed
+  command: docker --version
+  register: docker_check
+  changed_when: false
+  failed_when: false
+
+- name: Abort when Docker is not installed
+  fail:
+    msg: "Docker が見つかりません。先に omv-extras で Docker を有効化してください（raspi_post_omv.yml を実行）。"
+  when: docker_check.rc != 0
+
+- name: Install Python Docker SDK for Ansible
   apt:
     name: "{{ docker_engine_packages }}"
     state: present
     update_cache: yes
 
-- name: Ensure docker service enabled
+- name: Ensure docker service is enabled and running
   systemd:
     name: "{{ docker_engine_service }}"
     state: started
     enabled: yes
+
+- name: Add user to docker group
+  user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes

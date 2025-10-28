@@ -7,3 +7,9 @@
 - name: Include SMB share configuration
   import_tasks: smb_shares.yml
 
+## SMB 設定を反映（omv-rpcでDB更新後、明示的にデプロイ）
+- name: Deploy SMB configuration via omv-salt
+  command: omv-salt deploy run samba
+  register: omv_salt_samba
+  changed_when: false
+  failed_when: false

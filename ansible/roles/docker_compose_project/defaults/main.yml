@@ -2,5 +2,6 @@
 docker_compose_project_src: ""
 docker_compose_project_files:
   - docker-compose.yml
-docker_compose_pull: true
+# pull: always (常に最新イメージを取得), missing (ローカルにない場合のみ), never (pull しない), policy (compose ファイルの設定に従う)
+docker_compose_pull: always
 docker_compose_state: present

@@ -3,8 +3,9 @@
 Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リモートアクセスを Docker Compose で統合する構成です。OS 用 SSD にシステムを集約し、USB3.0 ストレージをメディア保存に利用する前提で設計しています。
 
 ## システム構成方針
-- **OS**: Raspberry Pi OS Lite (64-bit, Debian 12 Bookworm ベース)。この構成では OMV 7 (Sandworm) を導入し、`omv-extras` で Docker/Compose v2 を有効化。
+- **OS**: Raspberry Pi OS Lite (64-bit, Debian 12 Bookworm ベース)。この構成では OMV 7 (Sandworm) を導入し、`omv-extras` で Docker/Compose v2 を有効化します。
   - 注意: OMV のメジャーバージョンは基盤の Debian に依存します。
+  - Docker は Ansible が `omv-extras` 経由で自動的に有効化します（`omv-env` + `omv-salt deploy`）。
 - **サービス**: Jellyfin (動画ライブラリ)、Komga (書籍・漫画)、Tailscale (遠隔アクセス)。ファイル共有は OMV 標準の SMB を使用。
 - **ハードウェア要件**: Raspberry Pi 4 8GB、信頼性の高い USB3.0-SATA アダプタ、十分な容量の外付けストレージ。有線 LAN + 静的 IP。
 - **権限管理**: すべてのコンテナは `UID/GID=1000`（手動で作成した管理ユーザーを想定）で実行。OMV の共有フォルダ権限と整合を取る。
@@ -117,7 +118,7 @@ macOS Finder:
 
 ### OMV 設定用 Playbook
 - Playbook: `ansible/playbooks/omv_config.yml`
-  - OMV 導入後に Docker エンジン (`docker.io`, `docker-compose-plugin`) と Python Docker SDK (`python3-docker`) をインストールし、`docker` サービスを起動・自動起動化します。
+  - OMV-Extras 経由で Docker を有効化し、Python Docker SDK (`python3-docker`) をインストールします。
   - `.env` と `docker-compose.yml` を前提に、ホスト側ディレクトリ（`CONFIG_ROOT` / `CACHE_ROOT`）を作成し、Jellyfin / Komga / Tailscale を `docker compose` で起動します。
   - `community.docker` コレクション（`ansible-galaxy collection install community.docker`）が必要です。`community.general` と合わせて事前に導入してください。
   - 実行前に `raspi_bootstrap.yml` が完了していることを前提としています。OMV 未導入または `.env` 未生成の場合は明示的に fail します。

@@ -16,3 +16,25 @@
     name: "{{ pkgs }}"
     state: present
     update_cache: yes
+
+- name: Check if Docker is already enabled
+  command: omv-env get OMV_DOCKER_INSTALL
+  register: docker_status
+  changed_when: false
+  failed_when: false
+
+- name: Enable Docker via omv-extras
+  command: omv-env set OMV_DOCKER_INSTALL "yes"
+  when: docker_status.stdout != "yes"
+  register: docker_enable
+
+- name: Deploy Docker configuration via omv-salt
+  command: omv-salt deploy run docker
+  when: docker_enable is changed
+  register: docker_deploy
+
+- name: Wait for Docker service to be ready
+  systemd:
+    name: docker
+    state: started
+  when: docker_deploy is changed

@@ -11,7 +11,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ docker_compose_project_src }}"
     files: "{{ docker_compose_project_files }}"
-    pull: "{{ docker_compose_pull | bool }}"
+    pull: "{{ docker_compose_pull }}"
     state: "{{ docker_compose_state }}"
   register: docker_compose_result
 

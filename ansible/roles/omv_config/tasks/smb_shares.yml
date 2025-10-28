@@ -20,6 +20,16 @@
     smb_media: "{{ (smb_share_items | selectattr('name','equalto','media') | list | first | default({})) }}"
     smb_utatane: "{{ (smb_share_items | selectattr('name','equalto','utatane') | list | first | default({})) }}"
 
+- name: SMB共有をsharedfolderrefで検索
+  set_fact:
+    smb_media_by_ref: "{{ (smb_share_items | selectattr('sharedfolderref','equalto', media_sharedfolder_uuid) | list | first | default({})) }}"
+    smb_utatane_by_ref: "{{ (smb_share_items | selectattr('sharedfolderref','equalto', utatane_sharedfolder_uuid) | list | first | default({})) }}"
+
+- name: "既存SMB共有（優先: 名前→sharedfolderref）"
+  set_fact:
+    smb_media_existing: "{{ smb_media if (smb_media.uuid | default('') | length) > 0 else smb_media_by_ref }}"
+    smb_utatane_existing: "{{ smb_utatane if (smb_utatane.uuid | default('') | length) > 0 else smb_utatane_by_ref }}"
+
 - name: 希望するSMB共有オブジェクトを生成
   set_fact:
     smb_media_desired:
@@ -64,30 +74,53 @@
 
 - name: SMBペイロードを生成（uuidは既存またはEMPTY_UUID）
   set_fact:
-    smb_media_payload: "{{ smb_media_desired | combine({'uuid': (smb_media.uuid | default('fa4b1c66-ef79-11e5-87a0-0002b3a176b4', true))}) }}"
-    smb_utatane_payload: "{{ smb_utatane_desired | combine({'uuid': (smb_utatane.uuid | default('fa4b1c66-ef79-11e5-87a0-0002b3a176b4', true))}) }}"
+    smb_media_payload: "{{ smb_media_desired | combine({'uuid': (smb_media_existing.uuid | default('fa4b1c66-ef79-11e5-87a0-0002b3a176b4', true))}) }}"
+    smb_utatane_payload: "{{ smb_utatane_desired | combine({'uuid': (smb_utatane_existing.uuid | default('fa4b1c66-ef79-11e5-87a0-0002b3a176b4', true))}) }}"
 
 - name: media共有の更新要否を判定
   set_fact:
     smb_media_needs_update: >-
       {{
-        (smb_media.get('sharedfolderref') | default('')) != smb_media_desired.sharedfolderref
-        or (smb_media.get('readonly') | default(false) | bool) != (smb_media_desired.readonly | bool)
-        or (smb_media.get('guest') | default('no')) != smb_media_desired.guest
-        or (smb_media.get('extraoptions') | default('')) != smb_media_desired.extraoptions
-        or (smb_media.get('recyclebin') | default(false) | bool) != (smb_media_desired.recyclebin | bool)
+        (smb_media_existing.get('sharedfolderref') | default('')) != smb_media_desired.sharedfolderref
+        or (smb_media_existing.get('readonly') | default(false) | bool) != (smb_media_desired.readonly | bool)
+        or (smb_media_existing.get('guest') | default('no')) != smb_media_desired.guest
+        or (smb_media_existing.get('extraoptions') | default('')) != smb_media_desired.extraoptions
+        or (smb_media_existing.get('recyclebin') | default(false) | bool) != (smb_media_desired.recyclebin | bool)
       }}
 
 - name: utatane共有の更新要否を判定
   set_fact:
     smb_utatane_needs_update: >-
       {{
-        (smb_utatane.get('sharedfolderref') | default('')) != smb_utatane_desired.sharedfolderref
-        or (smb_utatane.get('readonly') | default(false) | bool) != (smb_utatane_desired.readonly | bool)
-        or (smb_utatane.get('guest') | default('no')) != smb_utatane_desired.guest
-        or (smb_utatane.get('extraoptions') | default('')) != smb_utatane_desired.extraoptions
-        or (smb_utatane.get('recyclebin') | default(false) | bool) != (smb_utatane_desired.recyclebin | bool)
+        (smb_utatane_existing.get('sharedfolderref') | default('')) != smb_utatane_desired.sharedfolderref
+        or (smb_utatane_existing.get('readonly') | default(false) | bool) != (smb_utatane_desired.readonly | bool)
+        or (smb_utatane_existing.get('guest') | default('no')) != smb_utatane_desired.guest
+        or (smb_utatane_existing.get('extraoptions') | default('')) != smb_utatane_desired.extraoptions
+        or (smb_utatane_existing.get('recyclebin') | default(false) | bool) != (smb_utatane_desired.recyclebin | bool)
       }}
+
+- name: "'media' 名の共有が別sharedfolderrefに紐づく場合は中断"
+  fail:
+    msg: >-
+      SMB 共有名 'media' は既に存在しますが、sharedfolderref が一致しません。
+      既存: sharedfolderref={{ smb_media.get('sharedfolderref') | default('N/A') }},
+      期待: {{ media_sharedfolder_uuid }}。
+      OMV GUI で既存の 'media' を削除/リネームするか、共有フォルダの割当を見直してください。
+  when:
+    - (smb_media.uuid | default('') | length) > 0
+    - (smb_media.get('sharedfolderref') | default('')) != (media_sharedfolder_uuid | default(''))
+
+- name: "'utatane' 名の共有が別sharedfolderrefに紐づく場合は中断"
+  fail:
+    msg: >-
+      SMB 共有名 'utatane' は既に存在しますが、sharedfolderref が一致しません。
+      既存: sharedfolderref={{ smb_utatane.get('sharedfolderref') | default('N/A') }},
+      期待: {{ utatane_sharedfolder_uuid }}。
+      OMV GUI で既存の 'utatane' を削除/リネームするか、共有フォルダの割当を見直してください。
+  when:
+    - (utatane_sharedfolder_uuid | default('') | length) > 0
+    - (smb_utatane.uuid | default('') | length) > 0
+    - (smb_utatane.get('sharedfolderref') | default('')) != (utatane_sharedfolder_uuid | default(''))
 
 - name: SMB共有 'media' を作成／更新
   shell: >-
