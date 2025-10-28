@@ -56,7 +56,7 @@
       enable: true
       comment: raspi-media-server
       sharedfolderref: "{{ utatane_sharedfolder_uuid }}"
-      browseable: true
+      browseable: false  # ネットワークブラウジングで非表示（直接パス指定ならアクセス可）
       readonly: false
       guest: "no"
       recyclebin: false
