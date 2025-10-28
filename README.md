@@ -14,9 +14,10 @@ Raspberry Pi 4 (8GB) + OpenMediaVault(OMV) を前提に、NAS/動画/漫画/リ�
 - 実行順（Play 単位）
   1) `raspi_bootstrap`: ベースOS調整＋OMV導入（SSH再接続を伴う）
   2) `raspi_post_omv`: 管理ユーザー整備、.env 生成、OMV-Extras 導入
-  3) `omv_storage`: ディスク/ファイルシステムのマウント存在検証と初期ディレクトリ作成（共有フォルダ/SMB/NFS は今後拡張）
-  4) `omv_config`（Docker 展開）: Dockerエンジン＋必要ディレクトリ作成＋Compose で Jellyfin/Komga/Tailscale 起動
-  5) `services_config`（任意）: Jellyfin/Komga の初期設定を最小限自動化
+  3) `omv_storage`: ディスク/ファイルシステムのマウント存在検証と初期ディレクトリ作成
+  4) `omv_config`: OMV の共有フォルダ（SharedFolder）作成と SMB 共有の作成/更新
+  5) `services_deploy`: Docker エンジン導入＋Compose で Jellyfin/Komga/Tailscale 起動
+  6) `services_config`（任意）: Jellyfin/Komga の初期設定を最小限自動化
 
 補足: `omv_storage` はまずマウント存在検証とディレクトリ初期化のみ対応（共有フォルダ/SMB/NFS は段階的に追加予定）。
 
@@ -187,8 +188,9 @@ macOS Finder:
 - `ansible/playbooks/raspi_bootstrap.yml`: 初期セットアップと OMV 導入（SSH 再接続考慮）
 - `ansible/playbooks/raspi_post_omv.yml`: 管理ユーザー整備、.env 生成、OMV-Extras 導入
 - `ansible/playbooks/omv_storage.yml`: ディスク/FS/マウントの存在を確認し、README のレイアウトに沿ったディレクトリを作成
-- `ansible/playbooks/omv_config.yml`: Docker エンジン導入、必要ディレクトリ作成、Compose 展開
-- `ansible/playbooks/services_config.yml`: 各サービスの初期設定（準備中）
+- `ansible/playbooks/omv_config.yml`: OMV の共有フォルダ作成と SMB 共有設定（media/utatane）
+- `ansible/playbooks/services_deploy.yml`: Docker エンジン導入、必要ディレクトリ作成、Compose 展開と最小限のサービス設定
+- `ansible/playbooks/services_config.yml`: 各サービスの初期設定（追加自動化）
 - `ansible/playbooks/main.yml`: 実行順の統括（現状は post_omv → omv_config の順。今後 storage を間に挿入）
 
 ## 運用ノート

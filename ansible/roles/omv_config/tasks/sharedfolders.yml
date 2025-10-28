@@ -1,7 +1,7 @@
 ---
 # 共有フォルダ (OMV の SharedFolder) を作成する。
 
-- name: Derive OMV mount root and desired roots
+- name: OMVマウントルートと必要なルートを導出
   set_fact:
     mount_root: "{{ (dotenv.MEDIA_ROOT | default('') ) | dirname }}"
     media_root: "{{ dotenv.MEDIA_ROOT | default('') }}"
@@ -9,7 +9,7 @@
     utatane_root_from_picture: "{{ dotenv.PRIVATE_PICTURE_ROOT | default('') | dirname if (dotenv.PRIVATE_PICTURE_ROOT | default('') | length > 0) else '' }}"
     utatane_root_from_manga: "{{ dotenv.MANGA_PRIVATE_ROOT | default('') | dirname if (dotenv.MANGA_PRIVATE_ROOT | default('') | length > 0) else '' }}"
 
-- name: Select utatane root
+- name: utataneルートを決定
   set_fact:
     utatane_root: >-
       {{
@@ -18,105 +18,170 @@
         else (utatane_root_from_picture if utatane_root_from_picture | length > 0 else utatane_root_from_manga)
       }}
 
-- name: Validate mount_root
+- name: mount_rootを検証
   assert:
     that:
       - mount_root | length > 0
       - mount_root.startswith('/srv/dev-disk-by-uuid-')
     fail_msg: "MEDIA_ROOT から導出した mount_root が /srv/dev-disk-by-uuid- 配下ではありません。"
 
-- name: Fetch mountpoint entries
+- name: マウントポイント設定を取得
   command: omv-confdbadm read conf.system.filesystem.mountpoint
   register: mp_raw
   changed_when: false
   failed_when: false
 
-- name: Parse mountpoint entries
+- name: マウントポイント設定を解析
   set_fact:
     mp_parsed: "{{ (mp_raw.stdout | default('[]')) | from_json | default([], true) }}"
 
-- name: Normalize mountpoint list
+- name: マウントポイント一覧を正規化
   set_fact:
     mp_items: "{{ (mp_parsed.config if (mp_parsed is mapping and 'config' in mp_parsed) else mp_parsed) | list }}"
 
-- name: Pick mount entry by dir
+- name: 対象ディレクトリのマウントエントリを抽出
   set_fact:
     mount_entry: "{{ (mp_items | selectattr('dir','equalto', mount_root) | list | first | default({})) }}"
 
-- name: Abort when mount entry not found
+- name: マウントエントリが無い場合は中断
   fail:
     msg: "OMV のマウントエントリが見つかりませんでした。OMV GUI で対象ファイルシステムをマウントしてください: {{ mount_root }}"
-  when: mount_entry.get('uuid') | default('') | length == 0
+  when: (mount_entry.uuid | default('', true) | length) == 0
 
-- name: Compute relative paths
+- name: 相対パスを算出
   set_fact:
     media_relpath: "{{ media_root | replace(mount_root + '/', '') | replace(mount_root, '') }}"
     utatane_relpath: "{{ utatane_root | replace(mount_root + '/', '') | replace(mount_root, '') }}"
 
-- name: Read existing shared folders
+- name: 共有フォルダ設定を取得
   command: omv-confdbadm read conf.system.sharedfolder
   register: sf_raw
   changed_when: false
   failed_when: false
 
-- name: Parse shared folders
+- name: 共有フォルダ設定を解析
   set_fact:
     sf_parsed: "{{ (sf_raw.stdout | default('[]')) | from_json | default([], true) }}"
 
-- name: Normalize shared folder list
+- name: 共有フォルダ一覧を正規化
   set_fact:
     sf_items: "{{ (sf_parsed.config if (sf_parsed is mapping and 'config' in sf_parsed) else sf_parsed) | list }}"
 
-- name: Lookup existing sharedfolder uuids
+- name: 既存共有フォルダUUIDを検索
   set_fact:
     media_sf: "{{ (sf_items | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', media_relpath) | list | first | default({})) }}"
     utatane_sf: "{{ (sf_items | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', utatane_relpath) | list | first | default({})) }}"
 
-- name: Create sharedfolder 'media' when missing
+- name: 共有フォルダを名前で検索（重複名検出用）
+  set_fact:
+    media_name_sf: "{{ (sf_items | selectattr('name','equalto','media') | list | first | default({})) }}"
+    utatane_name_sf: "{{ (sf_items | selectattr('name','equalto','utatane') | list | first | default({})) }}"
+
+- name: "'media' 名の共有が別パスに存在する場合は中断"
+  fail:
+    msg: >-
+      共有フォルダ名 'media' は既に存在しますが、期待するパスと一致しません。
+      既存: mntentref={{ media_name_sf.mntentref | default('') }},
+      reldirpath={{ media_name_sf.reldirpath | default('') }}
+      期待: mntentref={{ mount_entry.uuid }}, reldirpath={{ media_relpath }}。
+      OMV GUI で既存の 'media' を削除/リネームするか、期待パスを合わせてください。
+  when:
+    - media_name_sf.uuid is defined
+    - not (
+        media_name_sf.mntentref == mount_entry.uuid and
+        (media_name_sf.reldirpath | regex_replace('/+$','')) == (media_relpath | regex_replace('/+$',''))
+      )
+
+- name: 共有フォルダ 'media' を作成 (OMV7)
   shell: >-
-    omv-rpc 'SharedFolder' 'create' '{{ {
+    omv-rpc 'ShareMgmt' 'set' '{{ {
+      "uuid": "fa4b1c66-ef79-11e5-87a0-0002b3a176b4",
       "name": "media",
       "reldirpath": media_relpath,
       "mntentref": mount_entry.uuid,
       "comment": "raspi-media-server",
       "privileges": []
     } | to_json }}'
-  register: sf_media_create
+  register: sf_media_create_sharem
   changed_when: true
-  when: media_sf.get('uuid') | default('') | length == 0
+  when:
+    - media_sf.uuid is not defined or media_sf.uuid | length == 0
+    - not (
+        media_name_sf.uuid is defined and
+        media_name_sf.mntentref == mount_entry.uuid and
+        (media_name_sf.reldirpath | regex_replace('/+$','')) == (media_relpath | regex_replace('/+$',''))
+      )
 
-- name: Create sharedfolder 'utatane' when missing
+- name: 共有フォルダ 'utatane' を作成 (OMV7)
   shell: >-
-    omv-rpc 'SharedFolder' 'create' '{{ {
+    omv-rpc 'ShareMgmt' 'set' '{{ {
+      "uuid": "fa4b1c66-ef79-11e5-87a0-0002b3a176b4",
       "name": "utatane",
       "reldirpath": utatane_relpath,
       "mntentref": mount_entry.uuid,
       "comment": "raspi-media-server",
       "privileges": []
     } | to_json }}'
-  register: sf_utatane_create
+  register: sf_utatane_create_sharem
   changed_when: true
   when:
     - utatane_root | length > 0
-    - utatane_sf.get('uuid') | default('') | length == 0
+    - (utatane_sf.uuid | default('', true) | length) == 0
+    - not (
+        (utatane_name_sf.uuid | default('', true) | length) > 0 and
+        (utatane_name_sf.mntentref | default('')) == (mount_entry.uuid | default('')) and
+        ((utatane_name_sf.reldirpath | default('') | regex_replace('/+$','')) == (utatane_relpath | regex_replace('/+$','')))
+      )
 
-- name: Refresh shared folder list after creation
+- name: "'utatane' 名の共有が別パスに存在する場合は中断"
+  fail:
+    msg: >-
+      共有フォルダ名 'utatane' は既に存在しますが、期待するパスと一致しません。
+      既存: mntentref={{ utatane_name_sf.mntentref | default('') }}, reldirpath={{ utatane_name_sf.reldirpath | default('') }}
+      期待: mntentref={{ mount_entry.uuid }}, reldirpath={{ utatane_relpath }}。
+      OMV GUI で既存の 'utatane' を削除/リネームするか、期待パスを合わせてください。
+  when:
+    - utatane_root | length > 0
+    - (utatane_sf.uuid | default('', true) | length) == 0
+    - (utatane_name_sf.uuid | default('', true) | length) > 0
+    - not (
+        (utatane_name_sf.mntentref | default('')) == (mount_entry.uuid | default('')) and
+        ((utatane_name_sf.reldirpath | default('') | regex_replace('/+$','')) == (utatane_relpath | regex_replace('/+$','')))
+      )
+
+- name: 作成後に共有フォルダ一覧を再取得
   command: omv-confdbadm read conf.system.sharedfolder
   register: sf_raw_after
   changed_when: false
   failed_when: false
 
-- name: Parse/normalize shared folders (post)
+- name: 共有フォルダ設定を解析（再取得後）
   set_fact:
     sf_after: "{{ (sf_raw_after.stdout | default('[]')) | from_json | default([], true) }}"
+
+- name: 共有フォルダ一覧を正規化（再取得後）
+  set_fact:
     sf_items_after: "{{ ( (sf_after.config if (sf_after is mapping and 'config' in sf_after) else sf_after) | list ) }}"
 
-- name: Record sharedfolder UUIDs
+- name: 共有フォルダのUUIDを記録
   set_fact:
-    media_sharedfolder_uuid: "{{ (sf_items_after | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', media_relpath) | map(attribute='uuid') | list | first | default('')) }}"
-    utatane_sharedfolder_uuid: "{{ (sf_items_after | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', utatane_relpath) | map(attribute='uuid') | list | first | default('')) }}"
+    media_sharedfolder_uuid: >-
+      {{
+        (sf_items_after | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', media_relpath) | map(attribute='uuid') | list | first | default(''))
+          if (sf_items_after | length) > 0 else ''
+      }}
+    utatane_sharedfolder_uuid: >-
+      {{
+        (sf_items_after | selectattr('mntentref','equalto', mount_entry.uuid) | selectattr('reldirpath','equalto', utatane_relpath) | map(attribute='uuid') | list | first | default(''))
+          if (sf_items_after | length) > 0 else ''
+      }}
 
-- name: Fail if media sharedfolder uuid not resolved
+- name: 共有フォルダUUID取得が空の場合に名前で補完
+  set_fact:
+    media_sharedfolder_uuid: "{{ media_sharedfolder_uuid if (media_sharedfolder_uuid | length) > 0 else (media_name_sf.uuid | default('')) }}"
+    utatane_sharedfolder_uuid: "{{ utatane_sharedfolder_uuid if (utatane_sharedfolder_uuid | length) > 0 else (utatane_name_sf.uuid | default('')) }}"
+
+- name: "media のUUIDが解決できなければ失敗"
   fail:
     msg: "sharedfolder 'media' の UUID 解決に失敗しました。"
   when: media_sharedfolder_uuid | length == 0

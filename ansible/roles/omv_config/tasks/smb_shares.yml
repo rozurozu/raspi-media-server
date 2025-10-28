@@ -1,45 +1,73 @@
 ---
 # SMB 共有（Smb.setShare）を作成/更新する。
 
-- name: Read current SMB shares
+- name: SMB共有一覧を取得
   command: omv-confdbadm read conf.service.smb.share
   register: smb_share_raw
   changed_when: false
   failed_when: false
 
-- name: Parse SMB shares
+- name: SMB共有設定を解析
   set_fact:
     smb_share_parsed: "{{ (smb_share_raw.stdout | default('[]')) | from_json | default([], true) }}"
 
-- name: Normalize SMB share list
+- name: SMB共有一覧を正規化
   set_fact:
     smb_share_items: "{{ (smb_share_parsed.config if (smb_share_parsed is mapping and 'config' in smb_share_parsed) else smb_share_parsed) | list }}"
 
-- name: Lookup existing SMB shares by name
+- name: SMB共有を名前で検索
   set_fact:
     smb_media: "{{ (smb_share_items | selectattr('name','equalto','media') | list | first | default({})) }}"
     smb_utatane: "{{ (smb_share_items | selectattr('name','equalto','utatane') | list | first | default({})) }}"
 
-- name: Build desired SMB share objects
+- name: 希望するSMB共有オブジェクトを生成
   set_fact:
     smb_media_desired:
-      name: media
+      enable: true
       comment: raspi-media-server
       sharedfolderref: "{{ media_sharedfolder_uuid }}"
       browseable: true
       readonly: true
-      guest: 'no'
+      guest: "no"
+      recyclebin: false
+      recyclemaxsize: 0
+      recyclemaxage: 0
+      hidedotfiles: true
+      inheritacls: true
+      inheritpermissions: true
+      audit: false
       extraoptions: "valid users = @users"
+      easupport: false
+      storedosattributes: false
+      hostsallow: ""
+      hostsdeny: ""
+
     smb_utatane_desired:
-      name: utatane
+      enable: true
       comment: raspi-media-server
       sharedfolderref: "{{ utatane_sharedfolder_uuid }}"
       browseable: true
       readonly: false
-      guest: 'no'
+      guest: "no"
+      recyclebin: false
+      recyclemaxsize: 0
+      recyclemaxage: 0
+      hidedotfiles: true
+      inheritacls: true
+      inheritpermissions: true
+      audit: false
       extraoptions: "valid users = {{ admin_account_name }}"
+      easupport: false
+      storedosattributes: false
+      hostsallow: ""
+      hostsdeny: ""
 
-- name: Decide if media share needs update
+- name: SMBペイロードを生成（uuidは既存またはEMPTY_UUID）
+  set_fact:
+    smb_media_payload: "{{ smb_media_desired | combine({'uuid': (smb_media.uuid | default('fa4b1c66-ef79-11e5-87a0-0002b3a176b4', true))}) }}"
+    smb_utatane_payload: "{{ smb_utatane_desired | combine({'uuid': (smb_utatane.uuid | default('fa4b1c66-ef79-11e5-87a0-0002b3a176b4', true))}) }}"
+
+- name: media共有の更新要否を判定
   set_fact:
     smb_media_needs_update: >-
       {{
@@ -47,9 +75,10 @@
         or (smb_media.get('readonly') | default(false) | bool) != (smb_media_desired.readonly | bool)
         or (smb_media.get('guest') | default('no')) != smb_media_desired.guest
         or (smb_media.get('extraoptions') | default('')) != smb_media_desired.extraoptions
+        or (smb_media.get('recyclebin') | default(false) | bool) != (smb_media_desired.recyclebin | bool)
       }}
 
-- name: Decide if utatane share needs update
+- name: utatane共有の更新要否を判定
   set_fact:
     smb_utatane_needs_update: >-
       {{
@@ -57,21 +86,21 @@
         or (smb_utatane.get('readonly') | default(false) | bool) != (smb_utatane_desired.readonly | bool)
         or (smb_utatane.get('guest') | default('no')) != smb_utatane_desired.guest
         or (smb_utatane.get('extraoptions') | default('')) != smb_utatane_desired.extraoptions
+        or (smb_utatane.get('recyclebin') | default(false) | bool) != (smb_utatane_desired.recyclebin | bool)
       }}
 
-- name: Create/Update SMB share 'media'
+- name: SMB共有 'media' を作成／更新
   shell: >-
-    omv-rpc 'Smb' 'setShare' '{{ smb_media_desired | to_json }}'
+    omv-rpc 'Smb' 'setShare' '{{ smb_media_payload | to_json }}'
   register: smb_media_set
   changed_when: true
   when: smb_media_needs_update
 
-- name: Create/Update SMB share 'utatane'
+- name: SMB共有 'utatane' を作成／更新
   shell: >-
-    omv-rpc 'Smb' 'setShare' '{{ smb_utatane_desired | to_json }}'
+    omv-rpc 'Smb' 'setShare' '{{ smb_utatane_payload | to_json }}'
   register: smb_utatane_set
   changed_when: true
   when:
     - utatane_sharedfolder_uuid | length > 0
     - smb_utatane_needs_update
-

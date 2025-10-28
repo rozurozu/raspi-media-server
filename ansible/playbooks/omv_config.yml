@@ -1,10 +1,61 @@
 ---
-- name: OMV 設定適用（プレースホルダ）
+- name: OMV 設定適用（共有フォルダ/SMB）
   hosts: raspi
   gather_facts: false
   become: yes
 
+  pre_tasks:
+    - name: Check OpenMediaVault presence
+      stat:
+        path: /etc/openmediavault/config.xml
+      register: omv_config
+
+    - name: Abort when OMV is not installed yet
+      fail:
+        msg: "OMV が見つかりません。先に raspi_bootstrap.yml を完了してください。"
+      when: not omv_config.stat.exists
+
+    - name: Gather admin user entry
+      getent:
+        database: passwd
+        key: "{{ ansible_user }}"
+      register: admin_user_entry
+
+    - name: Record admin account facts
+      set_fact:
+        admin_account_name: "{{ ansible_user }}"
+        admin_user_home: "/home/{{ ansible_user }}"
+
+    - name: Determine docker compose dotenv path
+      set_fact:
+        dotenv_path: "{{ dotenv_path | default(admin_user_home + '/raspi-media-server/.env', true) }}"
+
+    - name: Validate dotenv path
+      assert:
+        that:
+          - dotenv_path is defined
+          - dotenv_path | path_is_absolute
+        fail_msg: "dotenv_path は絶対パスで指定してください"
+
+    - name: Check dotenv file exists
+      stat:
+        path: "{{ dotenv_path }}"
+      register: dotenv_file
+
+    - name: Abort when dotenv file is missing
+      fail:
+        msg: "{{ dotenv_path }} が見つかりません。raspi_post_omv.yml で dotenv を生成してください。"
+      when: not dotenv_file.stat.exists
+
+    - name: Read dotenv file (remote)
+      slurp:
+        src: "{{ dotenv_path }}"
+      register: omv_config_dotenv_slurp
+
+    - name: Parse dotenv values
+      set_fact:
+        dotenv: "{{ (( '[env]\n' ~ (omv_config_dotenv_slurp.content | b64decode)) | community.general.from_ini )['env'] }}"
+
   tasks:
-    - name: OMV 設定ロールは未実装です
-      debug:
-        msg: "OMV 本体の設定は今後ロール化予定です。"
+    - import_role:
+        name: omv_config

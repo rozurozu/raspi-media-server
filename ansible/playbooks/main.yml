@@ -4,5 +4,6 @@
 # 前提としてraspi_bootstrapを実行しomvをインストール後、IPアドレスを調整する。その後、以下を順に実行:
 - import_playbook: raspi_post_omv.yml
 - import_playbook: omv_storage.yml
+- import_playbook: omv_config.yml
 - import_playbook: services_deploy.yml
 # - import_playbook: services_config.yml

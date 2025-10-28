@@ -1,0 +1,9 @@
+---
+# OMV 設定適用ロール: 共有フォルダとSMB共有の作成/更新
+
+- name: Include shared folder creation
+  import_tasks: sharedfolders.yml
+
+- name: Include SMB share configuration
+  import_tasks: smb_shares.yml
+
