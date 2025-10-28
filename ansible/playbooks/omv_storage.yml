@@ -4,6 +4,9 @@
   gather_facts: false
   become: yes
 
+  vars_files:
+    - ../vault/all.yml
+
   pre_tasks:
     - name: Check UID in use by another account
       include_tasks: tasks/check_uid_gid.yml

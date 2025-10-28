@@ -1,9 +1,13 @@
-# vars_files:
-  # - ../vault/all.yml
+# 機密情報は ansible/vault/all.yml を参照（vault_* prefix）
+# playbook で vars_files: - ../vault/all.yml を読み込む必要がある
 
-ansible_user: "yoiko" # raspiの管理ユーザー
+# SSH接続ユーザー（vault から参照）
+ansible_user: "{{ vault_ansible_user }}"
+
+# SSH公開鍵（vault から参照）
+admin_authorized_key: "{{ vault_admin_authorized_key }}"
+
 set_hostname: "raspi-nas" # ホスト名
-admin_authorized_key: "{{ lookup('file', '~/.ssh/id_ed25519.pub').strip() }}"
 dotenv_path: "" # raspi内のdotenvパス。空文字ならデフォルトで管理ユーザーのホームディレクトリに配置
 timezone: "Asia/Tokyo"
 target_uid: 1000
@@ -27,6 +31,10 @@ ufw_allow_ports:
   - "2049"        # NFS
   - "892"         # NFS mountd (環境で必要なら)
   - "873"         # rsync (必要なら)
+  - "8096"        # Jellyfin
+  - "8920"        # Jellyfin HTTPS
+  - "25600"       # Komga
+  - "9999"        # Stash (内部のみ推奨、Tailscale経由が望ましい)
 
 dotenv:
   UID: "{{ target_uid }}"
@@ -43,26 +51,32 @@ dotenv:
   PRIVATE_PICTURE_ROOT: "{{ storage_mount_root }}/utatane/picture"
   MANGA_PUBLIC_ROOT: "{{ storage_mount_root }}/media/manga"
   MANGA_PRIVATE_ROOT: "{{ storage_mount_root }}/utatane/manga"
+  UTATANE_ROOT: "{{ storage_mount_root }}/utatane"
   JELLYFIN_PUBLISHED_URL: ""
   KOMGA_JAVA_OPTS: "-Xms512m -Xmx1024m"
-  TAILSCALE_AUTHKEY: ""
+  TAILSCALE_AUTHKEY: "{{ vault_tailscale_authkey | default('') }}"
   TAILSCALE_HOSTNAME: raspi-media
   TAILSCALE_EXTRA_ARGS: ""
 
-# Services initial config
+# Services initial config (機密情報はvaultから参照)
 services_jellyfin:
   enable: true
-  admin_user: ""         # 初回セットアップ用。未設定ならスキップ
-  admin_password: ""     # 初回セットアップ用。未設定ならスキップ
+  admin_user: "{{ vault_jellyfin_admin_user | default('') }}"
+  admin_password: "{{ vault_jellyfin_admin_password | default('') }}"
   libraries: []           # 例: [{ name: Videos, path: /media/video, collection_type: movies }]
 
 services_komga:
   enable: true
-  admin_email: ""        # 初回クレーム/BasicAuth 用
-  admin_password: ""     # 初回クレーム/BasicAuth 用
-  public_library_name: "Manga Public"
+  admin_email: "{{ vault_komga_admin_email | default('') }}"
+  admin_password: "{{ vault_komga_admin_password | default('') }}"
+  public_library_name: "Manga"
   private_library_name: "Manga Private"
   create_private_library: false
+
+services_stash:
+  enable: true
+  admin_user: "{{ vault_stash_admin_user | default('') }}"
+  admin_password: "{{ vault_stash_admin_password | default('') }}"
 
 # utatane アクセス用グループ（yoiko + 手動で追加するユーザー用）
 utatane_group:

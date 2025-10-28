@@ -6,6 +6,9 @@
   collections:
     - community.general
 
+  vars_files:
+    - ../vault/all.yml
+
   tasks:
     - name: Apply services_config role
       import_role:

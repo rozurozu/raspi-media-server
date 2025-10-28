@@ -7,6 +7,9 @@
     - community.docker
     - community.general
 
+  vars_files:
+    - ../vault/all.yml
+
   tasks:
     - name: Install Docker and bring up compose project
       import_role:
@@ -15,4 +18,3 @@
     - name: Configure services (Komga / Jellyfin)
       import_role:
         name: services_config
-

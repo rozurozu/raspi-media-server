@@ -4,6 +4,9 @@
   gather_facts: yes
   become: yes
 
+  vars_files:
+    - ../vault/all.yml
+
   pre_tasks:
     - name: OMV が導入済みか確認する
       stat:

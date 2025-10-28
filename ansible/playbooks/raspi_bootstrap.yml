@@ -5,6 +5,9 @@
   become: yes
   # ✅ 前提: Raspberry Pi OS セットアップ時に作成した管理ユーザーで接続して実行すること
 
+  vars_files:
+    - ../vault/all.yml
+
   pre_tasks:
     - name: Pythonが存在するか確認する
       raw: test -e /usr/bin/python3 || (apt-get update -y && apt-get install -y python3)
