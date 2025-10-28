@@ -34,11 +34,16 @@
           else ((utatane_root + '/picture') if (utatane_root | length > 0) else '') )
       }}
 
+- name: Compute Jellyfin subdirectories (movies, tvshows)
+  set_fact:
+    movies_dir: "{{ videos_root + '/movies' if (videos_root | length > 0) else '' }}"
+    tvshows_dir: "{{ videos_root + '/tvshows' if (videos_root | length > 0) else '' }}"
+
 - name: Build directory list from dotenv and README layout
   set_fact:
     omv_storage_dirs: >-
       {{
-        [media_root, videos_root, picture_root, manga_public_root,
+        [media_root, videos_root, movies_dir, tvshows_dir, picture_root, manga_public_root,
          utatane_root, private_videos_root, private_picture_root, manga_private_root]
         | select('defined')
         | select('string')
