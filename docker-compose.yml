@@ -16,7 +16,6 @@ services:
       - ${CONFIG_ROOT:-/opt/docker}/jellyfin/config:/config
       - ${CACHE_ROOT:-/opt/docker}/jellyfin/cache:/cache
       - ${VIDEOS_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/video}:/media/video:ro
-      - ${PRIVATE_VIDEOS_ROOT:-/srv/dev-disk-by-uuid-XXXX/utatane/video}:/utatane/video:ro
     networks:
       - media_net
 
@@ -32,12 +31,31 @@ services:
       - "25600:25600"
     volumes:
       - ${CONFIG_ROOT:-/opt/docker}/komga/config:/config
-      - ${MANGA_PUBLIC_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/media/books:ro # 公開(共有)用
-      # 非公開(個人)用を追加する場合は以下のコメントを外して利用してください
-      # - ${MANGA_PRIVATE_ROOT:-/srv/dev-disk-by-uuid-XXXX/utatane/manga}:/utatane/books:ro
+      - ${MANGA_PUBLIC_ROOT:-/srv/dev-disk-by-uuid-XXXX/media/manga}:/media/books:ro
     networks:
       - media_net
 
+  stash:
+    image: stashapp/stash:latest
+    container_name: stash
+    restart: unless-stopped
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - TZ=${TZ:-Asia/Tokyo}
+      - STASH_STASH=/data
+      - STASH_GENERATED=/generated
+      - STASH_METADATA=/metadata
+      - STASH_CACHE=/cache
+    ports:
+      - "9999:9999"
+    volumes:
+      - ${CONFIG_ROOT:-/opt/docker}/stash/config:/root/.stash
+      - ${CACHE_ROOT:-/opt/docker}/stash/generated:/generated
+      - ${CACHE_ROOT:-/opt/docker}/stash/metadata:/metadata
+      - ${CACHE_ROOT:-/opt/docker}/stash/cache:/cache
+      - ${UTATANE_ROOT:-/srv/dev-disk-by-uuid-XXXX/utatane}:/data
+    networks:
+      - media_net
 
   tailscale:
     image: tailscale/tailscale:stable

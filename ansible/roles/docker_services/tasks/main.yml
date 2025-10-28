@@ -101,11 +101,17 @@
           dotenv.CONFIG_ROOT + '/jellyfin/cache',
           dotenv.CONFIG_ROOT + '/komga',
           dotenv.CONFIG_ROOT + '/komga/config',
+          dotenv.CONFIG_ROOT + '/stash',
+          dotenv.CONFIG_ROOT + '/stash/config',
           dotenv.CONFIG_ROOT + '/tailscale',
           dotenv.CONFIG_ROOT + '/tailscale/state',
           dotenv.CACHE_ROOT,
           dotenv.CACHE_ROOT + '/jellyfin',
-          dotenv.CACHE_ROOT + '/jellyfin/cache'
+          dotenv.CACHE_ROOT + '/jellyfin/cache',
+          dotenv.CACHE_ROOT + '/stash',
+          dotenv.CACHE_ROOT + '/stash/generated',
+          dotenv.CACHE_ROOT + '/stash/metadata',
+          dotenv.CACHE_ROOT + '/stash/cache'
         ]
       }}
 

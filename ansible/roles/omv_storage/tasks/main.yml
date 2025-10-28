@@ -8,31 +8,10 @@
     videos_root: "{{ dotenv.VIDEOS_ROOT | default('') }}"
     picture_root: "{{ dotenv.PICTURE_ROOT | default('') }}"
     manga_public_root: "{{ dotenv.MANGA_PUBLIC_ROOT | default('') }}"
+    utatane_root: "{{ dotenv.UTATANE_ROOT | default('') }}"
     private_videos_root: "{{ dotenv.PRIVATE_VIDEOS_ROOT | default('') }}"
+    private_picture_root: "{{ dotenv.PRIVATE_PICTURE_ROOT | default('') }}"
     manga_private_root: "{{ dotenv.MANGA_PRIVATE_ROOT | default('') }}"
-
-- name: Compute utatane root candidates
-  set_fact:
-    utatane_root_from_private_video: "{{ private_videos_root | dirname if (private_videos_root | length > 0) else '' }}"
-    utatane_root_from_private_manga: "{{ manga_private_root | dirname if (manga_private_root | length > 0) else '' }}"
-
-- name: Select utatane root
-  set_fact:
-    utatane_root: >-
-      {{
-        utatane_root_from_private_video
-        if utatane_root_from_private_video | length > 0
-        else utatane_root_from_private_manga
-      }}
-
-- name: Compose private picture root (derived)
-  set_fact:
-    private_picture_root: >-
-      {{
-        (dotenv.PRIVATE_PICTURE_ROOT
-          if (dotenv is defined and 'PRIVATE_PICTURE_ROOT' in dotenv)
-          else ((utatane_root + '/picture') if (utatane_root | length > 0) else '') )
-      }}
 
 - name: Compute Jellyfin subdirectories (movies, tvshows)
   set_fact:

@@ -15,9 +15,11 @@ VIDEOS_ROOT={{ dotenv.VIDEOS_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/vi
 PRIVATE_VIDEOS_ROOT={{ dotenv.PRIVATE_VIDEOS_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/video') }}
 PICTURE_ROOT={{ dotenv.PICTURE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/picture') }}
 PRIVATE_PICTURE_ROOT={{ dotenv.PRIVATE_PICTURE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/picture') }}
-# Komga: 現状は公開(共有)ライブラリのみ使用します。非公開を使う場合は compose のコメント行を解除
+# Komga: 現状は公開(共有)ライブラリのみ使用します。
 MANGA_PUBLIC_ROOT={{ dotenv.MANGA_PUBLIC_ROOT | default('/srv/dev-disk-by-uuid-XXXX/media/manga') }}
-MANGA_PRIVATE_ROOT={{ dotenv.MANGA_PRIVATE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane/manga') }}
+
+# Stash: utatane 全体をマウント（個人用メディア管理）
+UTATANE_ROOT={{ dotenv.UTATANE_ROOT | default('/srv/dev-disk-by-uuid-XXXX/utatane') }}
 
 # Jellyfin 公開 URL (外部から逆引きする場合のみ設定)
 JELLYFIN_PUBLISHED_URL={{ dotenv.JELLYFIN_PUBLISHED_URL | default('') }}
@@ -29,4 +31,3 @@ KOMGA_JAVA_OPTS={{ dotenv.KOMGA_JAVA_OPTS | default('-Xms512m -Xmx1024m') }}
 TAILSCALE_AUTHKEY={{ dotenv.TAILSCALE_AUTHKEY | default('') }}
 TAILSCALE_HOSTNAME={{ dotenv.TAILSCALE_HOSTNAME | default('raspi-media') }}
 TAILSCALE_EXTRA_ARGS={{ dotenv.TAILSCALE_EXTRA_ARGS | default('') }}
-
