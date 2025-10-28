@@ -40,7 +40,7 @@
     - name: Record admin account facts
       set_fact:
         admin_account_name: "{{ ansible_user }}"
-        admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][5] }}"
+        admin_user_home: "/home/{{ ansible_user }}"
 
     - name: Determine docker compose dotenv path
       set_fact:

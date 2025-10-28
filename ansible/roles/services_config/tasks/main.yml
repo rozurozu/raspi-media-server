@@ -1,0 +1,226 @@
+# コンテナ個別の初期設定（Komga / Jellyfin）
+
+- name: Gather admin user entry
+  getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+  register: services_admin_user_entry
+
+- name: Record admin account home
+  set_fact:
+    services_admin_user_home: "/home/{{ ansible_user }}"
+
+- name: Load dotenv (path auto-detect like docker_services)
+  set_fact:
+    services_config_dotenv_path_effective: >-
+      {{
+        services_config_dotenv_path if (services_config_dotenv_path is defined and (services_config_dotenv_path | length) > 0)
+        else (docker_services_dotenv_path if (docker_services_dotenv_path is defined and (docker_services_dotenv_path | length) > 0)
+             else (omv_config_dotenv_path if (omv_config_dotenv_path is defined and (omv_config_dotenv_path | length) > 0)
+             else (services_admin_user_home + '/raspi-media-server/.env')))
+      }}
+
+- name: Validate dotenv path
+  assert:
+    that:
+      - services_config_dotenv_path_effective is defined
+      - services_config_dotenv_path_effective | path_is_absolute
+    fail_msg: "dotenv_path は絶対パスで指定してください"
+
+- name: Check dotenv file exists
+  stat:
+    path: "{{ services_config_dotenv_path_effective }}"
+  register: services_dotenv_file
+
+- name: Abort when dotenv missing
+  fail:
+    msg: "{{ services_config_dotenv_path_effective }} が見つかりません。"
+  when: not services_dotenv_file.stat.exists
+
+- name: Load dotenv values
+  set_fact:
+    dotenv: "{{ lookup('community.general.read_dotenv', services_config_dotenv_path_effective) }}"
+
+# Jellyfin 初期セットアップ（管理ユーザー作成のみ。ライブラリ登録は任意）
+
+- name: Wait for Jellyfin port
+  wait_for:
+    host: 127.0.0.1
+    port: 8096
+    timeout: 120
+  when: services_jellyfin.enable | default(true) | bool
+
+- name: Read Jellyfin public info
+  uri:
+    url: http://127.0.0.1:8096/System/Info/Public
+    method: GET
+    return_content: yes
+    status_code: 200
+  register: jellyfin_info
+  failed_when: false
+  when: services_jellyfin.enable | default(true) | bool
+
+- name: Create Jellyfin admin when wizard not completed
+  uri:
+    url: http://127.0.0.1:8096/Startup/User
+    method: POST
+    body_format: json
+    body:
+      Name: "{{ services_jellyfin.admin_user }}"
+      Password: "{{ services_jellyfin.admin_password }}"
+    headers:
+      X-Emby-Authorization: "MediaBrowser Client=Ansible, Device=Ansible, DeviceId=ansible-cli, Version=10.9.0"
+    status_code: [200, 204]
+  when:
+    - services_jellyfin.enable | default(true) | bool
+    - jellyfin_info is defined
+    - jellyfin_info.json is defined
+    - not (jellyfin_info.json.StartupWizardCompleted | default(true))
+    - (services_jellyfin.admin_user | default('')) | length > 0
+    - (services_jellyfin.admin_password | default('')) | length > 0
+  register: jellyfin_admin_create
+  failed_when: false
+
+- name: Authenticate to Jellyfin (token)
+  uri:
+    url: http://127.0.0.1:8096/Users/AuthenticateByName
+    method: POST
+    body_format: json
+    body:
+      Username: "{{ services_jellyfin.admin_user }}"
+      Pw: "{{ services_jellyfin.admin_password }}"
+    headers:
+      X-Emby-Authorization: "MediaBrowser Client=Ansible, Device=Ansible, DeviceId=ansible-cli, Version=10.9.0"
+    status_code: 200
+    return_content: yes
+  register: jellyfin_auth
+  when:
+    - services_jellyfin.enable | default(true) | bool
+    - (services_jellyfin.libraries | default([])) | length > 0
+    - (services_jellyfin.admin_user | default('')) | length > 0
+    - (services_jellyfin.admin_password | default('')) | length > 0
+  failed_when: false
+
+- name: Set Jellyfin token fact
+  set_fact:
+    jellyfin_token: "{{ (jellyfin_auth.json | default({})).AccessToken | default('') }}"
+  when:
+    - services_jellyfin.enable | default(true) | bool
+    - jellyfin_auth is defined
+
+- name: Get Jellyfin virtual folders
+  uri:
+    url: http://127.0.0.1:8096/Library/VirtualFolders
+    method: GET
+    headers:
+      X-Emby-Token: "{{ jellyfin_token }}"
+    status_code: 200
+    return_content: yes
+  register: jellyfin_vfolders
+  when:
+    - services_jellyfin.enable | default(true) | bool
+    - (services_jellyfin.libraries | default([])) | length > 0
+    - (jellyfin_token | default('')) | length > 0
+  failed_when: false
+
+- name: Compute missing Jellyfin libraries (by name)
+  set_fact:
+    jellyfin_existing_names: "{{ (jellyfin_vfolders.json | default([])) | map(attribute='Name') | list }}"
+    jellyfin_missing_libs: "{{ (services_jellyfin.libraries | default([])) | rejectattr('name', 'in', jellyfin_existing_names | default([])) | list }}"
+  when:
+    - services_jellyfin.enable | default(true) | bool
+    - (services_jellyfin.libraries | default([])) | length > 0
+
+- name: Create Jellyfin libraries
+  uri:
+    url: http://127.0.0.1:8096/Library/VirtualFolders
+    method: POST
+    headers:
+      X-Emby-Token: "{{ jellyfin_token }}"
+    body_format: json
+    body:
+      Name: "{{ item.name }}"
+      Locations: [ "{{ item.path }}" ]
+      CollectionType: "{{ item.collection_type | default('mixed') }}"
+    status_code: [200, 204]
+  loop: "{{ jellyfin_missing_libs }}"
+  when:
+    - services_jellyfin.enable | default(true) | bool
+    - (jellyfin_missing_libs | default([])) | length > 0
+    - (jellyfin_token | default('')) | length > 0
+  failed_when: false
+
+# Komga 初期設定（初回クレーム＋ライブラリ登録）
+
+- name: Wait for Komga port
+  wait_for:
+    host: 127.0.0.1
+    port: 25600
+    timeout: 120
+  when: services_komga.enable | default(true) | bool
+
+- name: Claim Komga admin (first-run only)
+  uri:
+    url: http://127.0.0.1:25600/api/v1/claim
+    method: POST
+    body_format: json
+    body:
+      email: "{{ services_komga.admin_email }}"
+      password: "{{ services_komga.admin_password }}"
+    status_code: [200, 204]
+  when:
+    - services_komga.enable | default(true) | bool
+    - (services_komga.admin_email | default('')) | length > 0
+    - (services_komga.admin_password | default('')) | length > 0
+  register: komga_claim
+  failed_when: false
+
+- name: Read Komga libraries
+  uri:
+    url: http://127.0.0.1:25600/api/v1/libraries
+    method: GET
+    force_basic_auth: yes
+    url_username: "{{ services_komga.admin_email }}"
+    url_password: "{{ services_komga.admin_password }}"
+    status_code: 200
+    return_content: yes
+  when:
+    - services_komga.enable | default(true) | bool
+    - (services_komga.admin_email | default('')) | length > 0
+    - (services_komga.admin_password | default('')) | length > 0
+  register: komga_libraries
+  failed_when: false
+
+- name: Set Komga desired libraries list
+  set_fact:
+    komga_desired_libraries: >-
+      {{
+        ([ { 'name': (services_komga.public_library_name | default('Manga Public')), 'root': '/media/books' } ]
+         + ( [ { 'name': (services_komga.private_library_name | default('Manga Private')), 'root': '/utatane/books' } ] if (services_komga.create_private_library | default(false) | bool) else [] ) )
+      }}
+  when: services_komga.enable | default(true) | bool
+
+- name: Compute Komga missing libraries
+  set_fact:
+    komga_existing_roots: "{{ (komga_libraries.json | default([])) | map(attribute='root') | list }}"
+    komga_missing_libraries: "{{ komga_desired_libraries | rejectattr('root', 'in', komga_existing_roots | default([])) | list }}"
+  when: services_komga.enable | default(true) | bool
+
+- name: Create Komga libraries (missing only)
+  uri:
+    url: http://127.0.0.1:25600/api/v1/libraries
+    method: POST
+    force_basic_auth: yes
+    url_username: "{{ services_komga.admin_email }}"
+    url_password: "{{ services_komga.admin_password }}"
+    body_format: json
+    body: "{{ item }}"
+    status_code: [200, 201]
+  loop: "{{ komga_missing_libraries }}"
+  when:
+    - services_komga.enable | default(true) | bool
+    - (services_komga.admin_email | default('')) | length > 0
+    - (services_komga.admin_password | default('')) | length > 0
+    - komga_missing_libraries | length > 0
+  register: komga_library_create
+  failed_when: false

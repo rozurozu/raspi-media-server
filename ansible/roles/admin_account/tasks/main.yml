@@ -26,15 +26,29 @@
     groups: "sudo"
     append: yes
     shell: /bin/bash
+    home: "/home/{{ ansible_user }}"
     move_home: yes
     create_home: yes
     state: present
     force: yes
 
+- name: Determine admin home path
+  set_fact:
+    admin_account_home: "/home/{{ ansible_user }}"
+
+- name: Validate admin home path
+  assert:
+    that:
+      - admin_account_home is string
+      - admin_account_home | length > 0
+      - admin_account_home | path_is_absolute
+    fail_msg: "管理ユーザーのホームディレクトリ解決に失敗しました。pre_common の収集結果を確認してください。"
+
 - name: Fix ownership of admin home directory
   file:
-    path: "{{ admin_user_home }}"
+    path: "/home/{{ ansible_user }}"
+    state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     recurse: yes
-  when: admin_user_home is defined and (admin_user_home | length) > 0
+  when: admin_account_home is defined and (admin_account_home | length) > 0

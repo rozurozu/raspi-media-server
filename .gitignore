@@ -16,3 +16,8 @@ media/**/*
 !media/**/.gitkeep
 
 ansible/vault/*.yml
+
+# Python bytecode/cache
+**/__pycache__/
+*.pyc
+ansible/playbooks/filter_plugins/__pycache__/path_filters.cpython-*.pyc

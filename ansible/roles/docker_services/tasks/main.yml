@@ -1,0 +1,103 @@
+---
+# OMV 環境で Docker を導入し、Compose プロジェクトを起動する。
+
+- name: Check OpenMediaVault presence
+  stat:
+    path: /etc/openmediavault/config.xml
+  register: omv_present
+
+- name: Abort when OMV is not installed yet
+  fail:
+    msg: "OMV が見つかりません。先に raspi_bootstrap.yml を完了してください。"
+  when: not omv_present.stat.exists
+
+- name: Gather admin user entry
+  getent:
+    database: passwd
+    key: "{{ ansible_user }}"
+  register: admin_user_entry
+
+- name: Record admin account facts
+  set_fact:
+    admin_account_name: "{{ ansible_user }}"
+    admin_user_home: "/home/{{ ansible_user }}"
+
+- name: Determine dotenv path
+  set_fact:
+    docker_services_dotenv_path_effective: >-
+      {{
+        docker_services_dotenv_path if (docker_services_dotenv_path is defined and (docker_services_dotenv_path | length) > 0)
+        else (omv_config_dotenv_path if (omv_config_dotenv_path is defined and (omv_config_dotenv_path | length) > 0) else (admin_user_home + '/raspi-media-server/.env'))
+      }}
+
+- name: Validate dotenv path
+  assert:
+    that:
+      - docker_services_dotenv_path_effective is defined
+      - docker_services_dotenv_path_effective | path_is_absolute
+    fail_msg: "dotenv_path は絶対パスで指定してください"
+
+- name: Check dotenv template output exists
+  stat:
+    path: "{{ docker_services_dotenv_path_effective }}"
+  register: dotenv_file
+
+- name: Abort when dotenv file is missing
+  fail:
+    msg: "{{ docker_services_dotenv_path_effective }} が見つかりません。raspi_post_omv.yml で dotenv を生成してください。"
+  when: not dotenv_file.stat.exists
+
+- name: Load dotenv values
+  set_fact:
+    dotenv: "{{ lookup('community.general.read_dotenv', docker_services_dotenv_path_effective) }}"
+
+- name: Derive compose project path
+  set_fact:
+    compose_project_src: "{{ docker_services_dotenv_path_effective | dirname }}"
+
+- name: Ensure docker compose manifest exists
+  stat:
+    path: "{{ compose_project_src }}/docker-compose.yml"
+  register: compose_file
+
+- name: Abort when docker compose manifest is missing
+  fail:
+    msg: "{{ compose_project_src }}/docker-compose.yml が見つかりません。リポジトリ配置と .env の生成を確認してください。"
+  when: not compose_file.stat.exists
+
+- name: Install Docker engine
+  import_role:
+    name: docker_engine
+
+- name: Build docker directories list from dotenv
+  set_fact:
+    omv_config_directories: >-
+      {{
+        [
+          dotenv.CONFIG_ROOT,
+          dotenv.CONFIG_ROOT + '/jellyfin',
+          dotenv.CONFIG_ROOT + '/jellyfin/config',
+          dotenv.CONFIG_ROOT + '/jellyfin/cache',
+          dotenv.CONFIG_ROOT + '/komga',
+          dotenv.CONFIG_ROOT + '/komga/config',
+          dotenv.CONFIG_ROOT + '/tailscale',
+          dotenv.CONFIG_ROOT + '/tailscale/state',
+          dotenv.CACHE_ROOT,
+          dotenv.CACHE_ROOT + '/jellyfin',
+          dotenv.CACHE_ROOT + '/jellyfin/cache'
+        ]
+      }}
+
+- name: Ensure docker related directories exist
+  import_role:
+    name: docker_directories
+  vars:
+    docker_directories_owner: "{{ admin_account_name }}"
+    docker_directories_group: "{{ admin_account_name }}"
+    docker_directories: "{{ omv_config_directories }}"
+
+- name: Apply docker compose project
+  import_role:
+    name: docker_compose_project
+  vars:
+    docker_compose_project_src: "{{ compose_project_src }}"

@@ -49,6 +49,21 @@ dotenv:
   TAILSCALE_HOSTNAME: raspi-media
   TAILSCALE_EXTRA_ARGS: ""
 
+# Services initial config
+services_jellyfin:
+  enable: true
+  admin_user: ""         # 初回セットアップ用。未設定ならスキップ
+  admin_password: ""     # 初回セットアップ用。未設定ならスキップ
+  libraries: []           # 例: [{ name: Videos, path: /media/video, collection_type: movies }]
+
+services_komga:
+  enable: true
+  admin_email: ""        # 初回クレーム/BasicAuth 用
+  admin_password: ""     # 初回クレーム/BasicAuth 用
+  public_library_name: "Manga Public"
+  private_library_name: "Manga Private"
+  create_private_library: false
+
 # OMV (SMB) 設定の既定値
 omv_smb:
   enable: true

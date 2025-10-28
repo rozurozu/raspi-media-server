@@ -17,7 +17,7 @@
   set_fact:
     admin_user_uid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][2] | int }}"
     admin_user_gid: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][3] | int }}"
-    admin_user_home: "{{ admin_user_entry.ansible_facts.getent_passwd[ansible_user][5] }}"
+    admin_user_home: "/home/{{ ansible_user }}"
 
 - name: dotenvのパスを決定する
   set_fact:
@@ -41,4 +41,3 @@
   loop: "{{ checks }}"
   loop_control:
     loop_var: check
-
