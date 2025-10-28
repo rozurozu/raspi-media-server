@@ -1,0 +1,36 @@
+---
+# SMB サービスを有効化する
+
+- name: Get current SMB service configuration
+  command: omv-confdbadm read conf.service.smb
+  register: smb_service_raw
+  changed_when: false
+  failed_when: false
+
+- name: Parse SMB service configuration
+  set_fact:
+    smb_service_current: "{{ (smb_service_raw.stdout | default('{}')) | from_json | default({}, true) }}"
+
+- name: Check if SMB service needs update
+  set_fact:
+    smb_service_needs_update: >-
+      {{
+        (smb_service_current.enable | default(false) | bool) != (omv_smb.enable | default(true) | bool) or
+        (smb_service_current.workgroup | default('')) != (omv_smb.workgroup | default('WORKGROUP'))
+      }}
+
+- name: Enable and configure SMB service (minimal settings)
+  shell: >-
+    omv-confdbadm update conf.service.smb '{{ {
+      "enable": omv_smb.enable | default(true),
+      "workgroup": omv_smb.workgroup | default("WORKGROUP")
+    } | to_json }}'
+  register: smb_service_update
+  changed_when: true
+  when: smb_service_needs_update | bool
+
+- name: Ensure smbd service is running
+  systemd:
+    name: smbd
+    state: started
+    enabled: yes

@@ -1,13 +1,15 @@
 ---
 # OMV 設定適用ロール: 共有フォルダとSMB共有の作成/更新
 
-- name: Include shared folder creation
+- name: Enable SMB service
+  import_tasks: smb_service.yml
+
+- name: Create shared folders
   import_tasks: sharedfolders.yml
 
-- name: Include SMB share configuration
+- name: Configure SMB shares
   import_tasks: smb_shares.yml
 
-## SMB 設定を反映（omv-rpcでDB更新後、明示的にデプロイ）
 - name: Deploy SMB configuration via omv-salt
   command: omv-salt deploy run samba
   register: omv_salt_samba
