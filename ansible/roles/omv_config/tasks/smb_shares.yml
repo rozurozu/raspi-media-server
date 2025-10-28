@@ -66,7 +66,7 @@
       inheritacls: true
       inheritpermissions: true
       audit: false
-      extraoptions: "valid users = {{ admin_account_name }}"
+      extraoptions: "valid users = @{{ utatane_group.name | default('utatane') }}"
       easupport: false
       storedosattributes: false
       hostsallow: ""

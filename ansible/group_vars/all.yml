@@ -64,6 +64,11 @@ services_komga:
   private_library_name: "Manga Private"
   create_private_library: false
 
+# utatane アクセス用グループ（yoiko + 手動で追加するユーザー用）
+utatane_group:
+  name: utatane
+  gid: 2000
+
 # OMV (SMB) 設定の既定値
 omv_smb:
   enable: true

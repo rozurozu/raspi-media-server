@@ -17,7 +17,7 @@
     state: present
     update_cache: yes
 
-- name: Check if Docker is already enabled
+- name: Check if Docker is already enabled via omv-extras
   command: omv-env get OMV_DOCKER_INSTALL
   register: docker_status
   changed_when: false
@@ -28,13 +28,23 @@
   when: docker_status.stdout != "yes"
   register: docker_enable
 
-- name: Deploy Docker configuration via omv-salt
-  command: omv-salt deploy run docker
-  when: docker_enable is changed
-  register: docker_deploy
+- name: Check if Docker is actually installed
+  command: docker --version
+  register: docker_check
+  changed_when: false
+  failed_when: false
 
-- name: Wait for Docker service to be ready
+- name: Warn if Docker is not installed after enabling
+  debug:
+    msg: |
+      警告: Docker がインストールされていません。
+      OMV WebUI から手動でインストールしてください:
+      System → omv-extras → Docker タブ → Install ボタン
+  when: docker_check.rc != 0
+
+- name: Ensure Docker service is running (if installed)
   systemd:
     name: docker
     state: started
-  when: docker_deploy is changed
+    enabled: yes
+  when: docker_check.rc == 0

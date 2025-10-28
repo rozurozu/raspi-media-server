@@ -58,3 +58,21 @@
     - item is defined
     - item | string | length > 0
     - item.startswith(mount_root + '/') or (item == mount_root) or item.startswith(media_root + '/') or (item == media_root)
+
+- name: Set utatane group ownership for private directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ omv_storage_owner | default(ansible_user) }}"
+    group: "{{ utatane_group.name | default('utatane') }}"
+    mode: "0770"  # グループメンバーのみアクセス可能
+  loop:
+    - "{{ utatane_root }}"
+    - "{{ private_videos_root }}"
+    - "{{ private_picture_root }}"
+    - "{{ manga_private_root }}"
+  when:
+    - item is defined
+    - item | string | length > 0
+    - utatane_root is defined
+    - utatane_root | length > 0

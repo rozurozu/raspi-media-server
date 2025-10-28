@@ -21,6 +21,9 @@
     - import_role:
         name: admin_account
 
+    - import_role:
+        name: personal_user
+
     - name: Recompute dotenv path after admin_account
       set_fact:
         dotenv_path: "{{ dotenv_path | default(admin_account_home + '/raspi-media-server/.env', true) }}"

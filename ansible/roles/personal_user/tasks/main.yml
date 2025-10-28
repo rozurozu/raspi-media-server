@@ -1,0 +1,14 @@
+---
+# utatane アクセス用グループを作成
+
+- name: Create utatane access group
+  group:
+    name: "{{ utatane_group.name | default('utatane') }}"
+    gid: "{{ utatane_group.gid | default(2000) }}"
+    state: present
+
+- name: Add admin user to utatane group
+  user:
+    name: "{{ ansible_user }}"
+    groups: "{{ utatane_group.name | default('utatane') }}"
+    append: yes
