@@ -166,7 +166,22 @@ macOS Finder:
   ├─ picture/             # 非公開写真 (SMB: \\utatane\picture、アプリ連携なし/任意)
   └─ manga/               # 非公開漫画 (Komga: /utatane/books)
 ```
-実際の UUID は `ls -al /srv` や OMV GUI で確認し、`ansible/group_vars/all.yml` の `dotenv` → `MEDIA_ROOT` / `VIDEOS_ROOT` / `PRIVATE_VIDEOS_ROOT` / `PICTURE_ROOT` / `MANGA_PUBLIC_ROOT` / `MANGA_PRIVATE_ROOT` を更新してから `ansible-playbook -i ansible/inventory.yml ansible/playbooks/raspi_post_omv.yml --tags dotenv` で再生成してください（PICTURE は SMB 共有のみで使用）。
+実際の UUID は必ず自分の環境で取得して設定してください。手順は下記「UUID の取得と設定」を参照。設定は `ansible/group_vars/all.yml` の `storage_uuid` だけを更新し、`.env` は Playbook で再生成します（手動編集はしない）。
+
+### UUID の取得と設定（必須）
+1. OMV で対象ディスクをファイルシステムとして作成し、マウント済みであることを確認
+   - GUI: Storage → File Systems で該当行が Mounted 状態になっていること
+2. UUID の確認
+   - 簡易: `ls -al /srv` で `dev-disk-by-uuid-XXXXXXXX...` の実パス（マウントディレクトリ）を確認
+   - 参考: `sudo blkid` でブロックデバイスの UUID 一覧を確認
+   - OMV 設定DB: `sudo omv-confdbadm read conf.system.filesystem.mountpoint | jq -r '.[].dir'`
+3. 設定ファイルを更新
+   - `ansible/group_vars/all.yml` の `storage_uuid` に取得した UUID を設定（例: `storage_uuid: "6a60..."`）
+   - `storage_mount_root` と `.env` の `MEDIA_ROOT` などはこの値から自動導出されます
+4. `.env` を再生成
+   - `ansible-playbook -i ansible/inventory.yml ansible/playbooks/raspi_post_omv.yml --tags dotenv`
+5. 検証
+   - リモートで `ls -d /srv/dev-disk-by-uuid-*` が実在し、`.env` の `MEDIA_ROOT` などがその配下を指していること
 
 ## Playbook 構成（概要）
 - `ansible/playbooks/raspi_bootstrap.yml`: 初期セットアップと OMV 導入（SSH 再接続考慮）
