@@ -37,9 +37,14 @@
     msg: "{{ services_config_dotenv_path_effective }} が見つかりません。"
   when: not services_dotenv_file.stat.exists
 
-- name: Load dotenv values
+- name: Read dotenv file (remote)
+  slurp:
+    src: "{{ services_config_dotenv_path_effective }}"
+  register: services_config_dotenv_slurp
+
+- name: Parse dotenv values
   set_fact:
-    dotenv: "{{ lookup('community.general.read_dotenv', services_config_dotenv_path_effective) }}"
+    dotenv: "{{ (( '[env]\n' ~ (services_config_dotenv_slurp.content | b64decode)) | community.general.from_ini )['env'] }}"
 
 # Jellyfin 初期セットアップ（管理ユーザー作成のみ。ライブラリ登録は任意）
 

@@ -63,9 +63,14 @@
         msg: "{{ dotenv_path }} が見つかりません。raspi_post_omv.yml で dotenv を生成してください。"
       when: not dotenv_file.stat.exists
 
-    - name: Load dotenv values
+    - name: Read dotenv file (remote)
+      slurp:
+        src: "{{ dotenv_path }}"
+      register: dotenv_slurp
+
+    - name: Parse dotenv values
       set_fact:
-        dotenv: "{{ lookup('community.general.read_dotenv', dotenv_path) }}"
+        dotenv: "{{ (( '[env]\n' ~ (dotenv_slurp.content | b64decode)) | community.general.from_ini )['env'] }}"
 
     - name: Derive OMV mount root from MEDIA_ROOT
       set_fact:

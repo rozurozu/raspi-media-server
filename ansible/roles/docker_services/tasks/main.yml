@@ -47,9 +47,14 @@
     msg: "{{ docker_services_dotenv_path_effective }} が見つかりません。raspi_post_omv.yml で dotenv を生成してください。"
   when: not dotenv_file.stat.exists
 
-- name: Load dotenv values
+- name: Read dotenv file (remote)
+  slurp:
+    src: "{{ docker_services_dotenv_path_effective }}"
+  register: docker_services_dotenv_slurp
+
+- name: Parse dotenv values
   set_fact:
-    dotenv: "{{ lookup('community.general.read_dotenv', docker_services_dotenv_path_effective) }}"
+    dotenv: "{{ (( '[env]\n' ~ (docker_services_dotenv_slurp.content | b64decode)) | community.general.from_ini )['env'] }}"
 
 - name: Derive compose project path
   set_fact:
